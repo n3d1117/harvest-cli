@@ -206,6 +206,60 @@ func TestLogUsesDefaultsAndOptionalNotes(t *testing.T) {
 	}
 }
 
+func TestLogAcceptsTodayLiteral(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	defaultProject := "Acme"
+	defaultTask := "Development"
+	if _, err := store.Save(config.Update{
+		AccountID:      &accountID,
+		Token:          &token,
+		DefaultProject: &defaultProject,
+		DefaultTask:    &defaultTask,
+	}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	client := &fakeClient{
+		assignments: []harvestapi.ProjectAssignment{
+			{
+				ID:       1,
+				IsActive: true,
+				Project:  harvestapi.Project{ID: 11, Name: "Acme"},
+				TaskAssignments: []harvestapi.TaskAssignment{
+					{ID: 2, IsActive: true, Task: harvestapi.Task{ID: 22, Name: "Development"}},
+				},
+			},
+		},
+		createResponse: harvestapi.TimeEntry{ID: 44},
+	}
+
+	app := &App{
+		Store:  store,
+		Prompt: &fakePrompt{},
+		Stdout: &bytes.Buffer{},
+		Stderr: &bytes.Buffer{},
+		Now: func() time.Time {
+			return time.Date(2026, 3, 11, 9, 0, 0, 0, time.Local)
+		},
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return client, nil
+		},
+	}
+
+	if err := app.Execute([]string{"log", "--duration", "30m", "--date", "today"}); err != nil {
+		t.Fatalf("log failed: %v", err)
+	}
+	if client.createInput.SpentDate != "2026-03-11" {
+		t.Fatalf("unexpected spent date: %q", client.createInput.SpentDate)
+	}
+}
+
 func TestTodayJSON(t *testing.T) {
 	t.Parallel()
 
@@ -254,6 +308,65 @@ func TestTodayJSON(t *testing.T) {
 	}
 	if len(payload.Entries) != 2 {
 		t.Fatalf("unexpected entry count: %d", len(payload.Entries))
+	}
+}
+
+func TestRecentJSON(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	if _, err := store.Save(config.Update{AccountID: &accountID, Token: &token}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	app := &App{
+		Store:  store,
+		Prompt: &fakePrompt{},
+		Stdout: &stdout,
+		Stderr: &bytes.Buffer{},
+		Now: func() time.Time {
+			return time.Date(2026, 3, 11, 12, 0, 0, 0, time.Local)
+		},
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return &fakeClient{
+				timeEntries: []harvestapi.TimeEntry{
+					{ID: 2, SpentDate: "2026-03-09", Hours: 0.5, Project: harvestapi.Project{Name: "Acme"}, Task: harvestapi.Task{Name: "Design"}},
+					{ID: 3, SpentDate: "2026-03-11", Hours: 1, Project: harvestapi.Project{Name: "Acme"}, Task: harvestapi.Task{Name: "Development"}},
+					{ID: 1, SpentDate: "2026-03-11", Hours: 0.25, Project: harvestapi.Project{Name: "Acme"}, Task: harvestapi.Task{Name: "Review"}},
+				},
+			}, nil
+		},
+	}
+
+	if err := app.Execute([]string{"recent", "--limit", "2", "--json"}); err != nil {
+		t.Fatalf("recent failed: %v", err)
+	}
+
+	var payload struct {
+		OK      bool                   `json:"ok"`
+		From    string                 `json:"from"`
+		To      string                 `json:"to"`
+		Entries []harvestapi.TimeEntry `json:"entries"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if !payload.OK {
+		t.Fatalf("expected ok payload")
+	}
+	if payload.From != "2025-12-12" || payload.To != "2026-03-11" {
+		t.Fatalf("unexpected window: %+v", payload)
+	}
+	if len(payload.Entries) != 2 {
+		t.Fatalf("unexpected entry count: %d", len(payload.Entries))
+	}
+	if payload.Entries[0].ID != 3 || payload.Entries[1].ID != 1 {
+		t.Fatalf("unexpected entry order: %+v", payload.Entries)
 	}
 }
 

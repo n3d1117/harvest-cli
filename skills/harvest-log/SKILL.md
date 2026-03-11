@@ -23,13 +23,19 @@ harvest whoami
 harvest projects --json
 ```
 
-3. Log time:
+3. If the user wants to reuse a recent project/task, inspect recent entries:
+
+```bash
+harvest recent --json
+```
+
+4. Log time:
 
 ```bash
 harvest log --project "Acme" --task "Development" --duration 1h30m --notes "CLI scaffolding"
 ```
 
-4. Verify same-day results:
+5. Verify same-day results:
 
 ```bash
 harvest today --json

@@ -28,6 +28,7 @@ Commands:
   config        Set or inspect stored config
   whoami        Verify Harvest auth
   projects      List active project/task pairs
+  recent        Show recent time entries
   log           Create a time entry
   today         Show today's entries
   help          Show help for a command
@@ -36,6 +37,7 @@ Examples:
   harvest login
   harvest whoami
   harvest projects --json
+  harvest recent
   harvest log --project "Acme" --task "Development" --duration 1h30m --notes "CLI scaffolding"
   harvest today
 `
@@ -101,6 +103,12 @@ const projectsHelp = `Usage:
 List active project/task pairs available for time logging.
 `
 
+const recentHelp = `Usage:
+  harvest recent [--limit <n>] [--days <n>] [--json]
+
+Show recent time entries. By default, this looks back 90 days and returns 10 entries.
+`
+
 const logHelp = `Usage:
   harvest log --project <name> --task <name> --duration <duration> [flags]
 
@@ -115,11 +123,12 @@ Flags:
 Notes:
   - Duration uses Go duration strings like 45m, 1h30m, or 2h.
   - Date defaults to local today in YYYY-MM-DD.
+  - Date also accepts the literal value "today".
   - Project and task can come from config defaults.
 
 Examples:
   harvest log --project "Acme" --task "Development" --duration 1h30m
-  harvest log --duration 45m --notes "Bug fix"
+  harvest log --duration 45m --date today --notes "Bug fix"
 `
 
 const todayHelp = `Usage:
@@ -235,6 +244,8 @@ func (a *App) Execute(args []string) error {
 		return a.runWhoami(args[1:])
 	case "projects":
 		return a.runProjects(args[1:])
+	case "recent":
+		return a.runRecent(args[1:])
 	case "log":
 		return a.runLog(args[1:])
 	case "today":
@@ -260,6 +271,8 @@ func (a *App) runHelp(args []string) error {
 		fmt.Fprint(a.Stdout, whoamiHelp)
 	case "projects":
 		fmt.Fprint(a.Stdout, projectsHelp)
+	case "recent":
+		fmt.Fprint(a.Stdout, recentHelp)
 	case "log":
 		fmt.Fprint(a.Stdout, logHelp)
 	case "today":
@@ -520,6 +533,71 @@ func (a *App) runProjects(args []string) error {
 	return writer.Flush()
 }
 
+func (a *App) runRecent(args []string) error {
+	fs := newFlagSet("recent", recentHelp, a.Stdout, a.Stderr)
+	jsonOutput := fs.Bool("json", false, "Print JSON")
+	limit := fs.Int("limit", 10, "Maximum number of entries to show")
+	days := fs.Int("days", 90, "How many days back to search")
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return &exitError{Code: 2, Message: "recent does not accept positional arguments"}
+	}
+	if *limit <= 0 {
+		return &exitError{Code: 2, Message: "--limit must be greater than zero"}
+	}
+	if *days <= 0 {
+		return &exitError{Code: 2, Message: "--days must be greater than zero"}
+	}
+
+	client, _, err := a.client(config.Values{})
+	if err != nil {
+		return err
+	}
+
+	now := a.Now().In(time.Local)
+	toDate := formatDate(now)
+	fromDate := formatDate(now.AddDate(0, 0, -(*days - 1)))
+
+	entries, err := client.TimeEntries(a.context(), fromDate, toDate)
+	if err != nil {
+		return err
+	}
+
+	sortTimeEntriesNewestFirst(entries)
+	if len(entries) > *limit {
+		entries = entries[:*limit]
+	}
+
+	if *jsonOutput {
+		return output.JSON(a.Stdout, struct {
+			OK      bool                   `json:"ok"`
+			From    string                 `json:"from"`
+			To      string                 `json:"to"`
+			Entries []harvestapi.TimeEntry `json:"entries"`
+		}{
+			OK:      true,
+			From:    fromDate,
+			To:      toDate,
+			Entries: entries,
+		})
+	}
+
+	if len(entries) == 0 {
+		fmt.Fprintf(a.Stdout, "No entries found from %s to %s.\n", fromDate, toDate)
+		return nil
+	}
+
+	writer := tabwriter.NewWriter(a.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(writer, "DATE\tPROJECT\tTASK\tHOURS\tNOTES")
+	for _, entry := range entries {
+		fmt.Fprintf(writer, "%s\t%s\t%s\t%.2f\t%s\n", entry.SpentDate, entry.Project.Name, entry.Task.Name, entry.Hours, entry.Notes)
+	}
+	return writer.Flush()
+}
+
 func (a *App) runLog(args []string) error {
 	fs := newFlagSet("log", logHelp, a.Stdout, a.Stderr)
 	var projectFlag stringFlag
@@ -550,11 +628,9 @@ func (a *App) runLog(args []string) error {
 		return &exitError{Code: 2, Message: err.Error()}
 	}
 
-	entryDate := strings.TrimSpace(*date)
-	if entryDate == "" {
-		entryDate = formatDate(a.Now().In(time.Local))
-	} else if _, err := time.ParseInLocation("2006-01-02", entryDate, time.Local); err != nil {
-		return &exitError{Code: 2, Message: "date must use YYYY-MM-DD"}
+	entryDate, err := resolveDateInput(*date, a.Now())
+	if err != nil {
+		return &exitError{Code: 2, Message: err.Error()}
 	}
 
 	overrides := config.Values{

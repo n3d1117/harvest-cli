@@ -2,6 +2,7 @@ package commands
 
 import (
 	"testing"
+	"time"
 
 	"harvest/internal/harvestapi"
 )
@@ -94,5 +95,43 @@ func TestResolveProjectTaskMissingAndAmbiguous(t *testing.T) {
 	}
 	if _, err := ResolveProjectTask(assignments, "Acme", "Development"); err == nil {
 		t.Fatalf("expected ambiguous project error")
+	}
+}
+
+func TestResolveDateInput(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 3, 11, 12, 0, 0, 0, time.Local)
+
+	got, err := resolveDateInput("", now)
+	if err != nil {
+		t.Fatalf("empty date should resolve: %v", err)
+	}
+	if got != "2026-03-11" {
+		t.Fatalf("unexpected resolved date: %q", got)
+	}
+
+	got, err = resolveDateInput("today", now)
+	if err != nil {
+		t.Fatalf("today should resolve: %v", err)
+	}
+	if got != "2026-03-11" {
+		t.Fatalf("unexpected today date: %q", got)
+	}
+
+	got, err = resolveDateInput("2026-03-09", now)
+	if err != nil {
+		t.Fatalf("explicit date should resolve: %v", err)
+	}
+	if got != "2026-03-09" {
+		t.Fatalf("unexpected explicit date: %q", got)
+	}
+}
+
+func TestResolveDateInputRejectsInvalid(t *testing.T) {
+	t.Parallel()
+
+	if _, err := resolveDateInput("11-03-2026", time.Now()); err == nil {
+		t.Fatalf("expected invalid date error")
 	}
 }

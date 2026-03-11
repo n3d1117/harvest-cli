@@ -55,6 +55,12 @@ Show project/task pairs you can log against:
 harvest projects
 ```
 
+See recent entries so you can reuse the same project/task:
+
+```bash
+harvest recent
+```
+
 Log time:
 
 ```bash
@@ -62,6 +68,7 @@ harvest log \
   --project "Acme" \
   --task "Development" \
   --duration 1h30m \
+  --date today \
   --notes "CLI scaffolding"
 ```
 

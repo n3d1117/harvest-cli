@@ -123,3 +123,26 @@ func formatDate(date time.Time) string {
 func fullName(user harvestapi.User) string {
 	return strings.TrimSpace(strings.TrimSpace(user.FirstName) + " " + strings.TrimSpace(user.LastName))
 }
+
+func resolveDateInput(input string, now time.Time) (string, error) {
+	value := strings.TrimSpace(input)
+	if value == "" || strings.EqualFold(value, "today") {
+		return formatDate(now.In(time.Local)), nil
+	}
+
+	parsed, err := time.ParseInLocation("2006-01-02", value, time.Local)
+	if err != nil {
+		return "", fmt.Errorf("date must use YYYY-MM-DD or `today`")
+	}
+
+	return formatDate(parsed), nil
+}
+
+func sortTimeEntriesNewestFirst(entries []harvestapi.TimeEntry) {
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].SpentDate == entries[j].SpentDate {
+			return entries[i].ID > entries[j].ID
+		}
+		return entries[i].SpentDate > entries[j].SpentDate
+	})
+}
