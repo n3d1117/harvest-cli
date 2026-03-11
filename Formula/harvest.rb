@@ -1,8 +1,8 @@
 class Harvest < Formula
   desc "CLI for Harvest time logging and week submission"
   homepage "https://github.com/n3d1117/harvest-cli"
-  url "https://github.com/n3d1117/harvest-cli/archive/refs/tags/1.0.0.tar.gz"
-  sha256 "495c43fb7aab844bf8679bcd67af7494fc38a11311cd11bb236878d86c776b92"
+  url "https://github.com/n3d1117/harvest-cli/archive/refs/tags/v1.0.0.tar.gz"
+  sha256 "647c6085729389fc438f548e3997c3bd063afd0c99e7e4b78391b21b573f287a"
   license "MIT"
   head "https://github.com/n3d1117/harvest-cli.git", branch: "main"
 
