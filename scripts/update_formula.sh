@@ -18,9 +18,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-gh api \
-  -H "Accept: application/vnd.github+json" \
-  "repos/${repo}/tarball/${tag}" >"$tmp_tarball"
+curl -fsSL "$source_url" -o "$tmp_tarball"
 
 sha="$(shasum -a 256 "$tmp_tarball" | awk '{print $1}')"
 
