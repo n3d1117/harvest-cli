@@ -1,5 +1,5 @@
 class Harvest < Formula
-  desc "Simple local-first Harvest time logging CLI"
+  desc "Simple local CLI for Harvest time logging"
   homepage "https://github.com/n3d1117/harvest-cli"
   license "MIT"
   head "https://github.com/n3d1117/harvest-cli.git", branch: "main"

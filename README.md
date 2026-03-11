@@ -1,10 +1,6 @@
-<p align="center">
-  <img src="assets/harvest-mark.svg" alt="Harvest logo: a sprouting hourglass" width="96">
-</p>
-
 # harvest
 
-`harvest` is a small local-first CLI for logging time to Harvest.
+`harvest` is a small local CLI for logging time to Harvest.
 
 The repo also contains an installable agent skill in [`skills/harvest-log`](/Users/ned/Downloads/harvest/skills/harvest-log/SKILL.md). The skill is generic: it tells an agent to use the local `harvest` CLI instead of talking to Harvest directly.
 
