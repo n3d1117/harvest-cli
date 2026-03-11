@@ -1,4 +1,4 @@
-![Harvest logo: timesheet card](/Users/ned/Downloads/harvest/assets/harvest-logo.svg)
+![Harvest logo: timesheet card](assets/harvest-logo.svg)
 
 # harvest
 
