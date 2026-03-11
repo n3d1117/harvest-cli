@@ -12,7 +12,9 @@ The repo also contains an installable agent skill in [`skills/harvest-log`](/Use
 brew install n3d1117/harvest-cli/harvest
 ```
 
-That path works after the repo is public and the first tagged release has updated `Formula/harvest.rb`.
+```bash
+npx skills add n3d1117/harvest-cli --skill harvest-log
+```
 
 ## First Use
 
@@ -56,15 +58,6 @@ harvest log \
   --notes "CLI scaffolding"
 ```
 
-Notes are optional:
-
-```bash
-harvest log \
-  --project "Acme" \
-  --task "Development" \
-  --duration 45m
-```
-
 See today:
 
 ```bash
@@ -101,12 +94,6 @@ Precedence is:
 1. command flags
 2. environment variables
 3. config file
-
-## Installing the skill
-
-```bash
-npx skills add n3d1117/harvest-cli --skill harvest-log
-```
 
 ## Development
 
