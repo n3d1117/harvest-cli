@@ -2,13 +2,31 @@
 
 Use this file for top-level JSON wrapper summaries and common CLI error strings.
 
-If you need the real help text, run `harvest help` or `harvest help <command>`.
+If you need the real help text, run `harvest help`, `harvest help config`, or `harvest help submit`.
+
+Nested help topics such as `harvest help config show` and `harvest help submit auth` are not supported.
+
+## Top-Level Commands
+
+Current top-level commands:
+
+- `login`
+- `config`
+- `submit`
+- `whoami`
+- `projects`
+- `recent`
+- `log`
+- `today`
+- `help`
 
 ## JSON Shapes
 
 These are the top-level JSON wrappers:
 
 - `config show --json`: `{ "ok": true, "config_path": "...", "config": { ... } }`
+- `submit auth status --json`: `{ "ok": true, "status": { ... } }`
+- `submit week --json`: `{ "ok": true, "result": { ... } }`
 - `whoami --json`: `{ "ok": true, "user": { ... } }`
 - `projects --json`: `{ "ok": true, "projects": [ ... ] }`
 - `recent --json`: `{ "ok": true, "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "entries": [ ... ] }`
@@ -19,10 +37,28 @@ These are the top-level JSON wrappers:
 
 These strings come from the CLI and are safe to quote back to the user.
 
-Missing credentials:
+Missing API credentials:
 
 ```text
 error: missing Harvest credentials; run `harvest login` or `harvest config set --account-id ... --token ...`
+```
+
+Missing submit auth:
+
+```text
+error: submit auth is not configured; run `harvest submit auth login` first
+```
+
+Expired submit auth without saved password:
+
+```text
+error: submit auth expired; run `harvest submit auth login` again or save a password with `--save-password`
+```
+
+Missing submit account ID:
+
+```text
+error: submit needs a Harvest account ID; run `harvest login` or `harvest config set --account-id ...` first
 ```
 
 Missing project:

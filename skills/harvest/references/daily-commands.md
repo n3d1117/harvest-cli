@@ -1,6 +1,6 @@
 # Harvest Daily Commands
 
-Use this file for day-to-day CLI work: auth checks, listing projects, recent entries, logging time, and reviewing today's entries.
+Use this file for day-to-day CLI work: auth checks, listing projects, recent entries, logging time, reviewing today's entries, and submitting a week for approval.
 
 ## Contents
 
@@ -9,10 +9,11 @@ Use this file for day-to-day CLI work: auth checks, listing projects, recent ent
 3. `recent`
 4. `log`
 5. `today`
+6. `submit week`
 
 ## `harvest whoami`
 
-Use to verify auth and show the current Harvest user.
+Use to verify public API auth and show the current Harvest user.
 
 Usage:
 
@@ -32,12 +33,6 @@ Human output:
 Ned Tester
 Email: ned@example.com
 User ID: 1
-```
-
-JSON example:
-
-```bash
-harvest whoami --json
 ```
 
 JSON example output:
@@ -64,24 +59,12 @@ Usage:
 harvest projects [--json]
 ```
 
-Human example:
-
-```bash
-harvest projects
-```
-
 Human output:
 
 ```text
 PROJECT  TASK         PROJECT ID  TASK ID
 Acme     Design       11          21
 Acme     Development  11          22
-```
-
-JSON example:
-
-```bash
-harvest projects --json
 ```
 
 JSON example output:
@@ -126,12 +109,6 @@ Defaults:
 - `--limit 10`
 - `--days 90`
 
-Human example:
-
-```bash
-harvest recent --limit 3
-```
-
 Human output:
 
 ```text
@@ -139,12 +116,6 @@ DATE        PROJECT  TASK         HOURS  NOTES
 2026-03-11  Acme     Development  1.00   CLI scaffolding
 2026-03-11  Acme     Review       0.25   PR review
 2026-03-09  Acme     Design       0.50   Wireframes
-```
-
-JSON example:
-
-```bash
-harvest recent --limit 2 --json
 ```
 
 JSON example output:
@@ -168,29 +139,10 @@ JSON example output:
         "name": "Development"
       },
       "notes": "CLI scaffolding"
-    },
-    {
-      "id": 1,
-      "spent_date": "2026-03-11",
-      "hours": 0.25,
-      "project": {
-        "id": 11,
-        "name": "Acme"
-      },
-      "task": {
-        "id": 23,
-        "name": "Review"
-      },
-      "notes": "PR review"
     }
   ]
 }
 ```
-
-Notes:
-
-- Entries are sorted newest first.
-- Same-day entries are ordered by larger entry ID first.
 
 ## `harvest log`
 
@@ -245,12 +197,6 @@ Logged 1.50h on 2026-03-11 to Acme / Development (#44).
 Notes: CLI scaffolding
 ```
 
-JSON example:
-
-```bash
-harvest log --duration 45m --json
-```
-
 JSON example output:
 
 ```json
@@ -268,22 +214,14 @@ JSON example output:
 }
 ```
 
-Use the shorter JSON example only when the default project and task are already configured.
-
 ## `harvest today`
 
-Use to inspect today's entries and total logged hours.
+Use to review today's time entries and total.
 
 Usage:
 
 ```bash
 harvest today [--json]
-```
-
-Human example:
-
-```bash
-harvest today
 ```
 
 Human output:
@@ -292,13 +230,7 @@ Human output:
 DATE        PROJECT  TASK         HOURS  NOTES
 2026-03-11  Acme     Development  1.25   CLI scaffolding
 2026-03-11  Acme     Review       0.75   PR review
-TOTAL                            2.00
-```
-
-JSON example:
-
-```bash
-harvest today --json
+TOTAL                             2.00
 ```
 
 JSON example output:
@@ -311,14 +243,63 @@ JSON example output:
   "entries": [
     {
       "id": 1,
-      "spent_date": "2026-03-11",
       "hours": 1.25
     },
     {
       "id": 2,
-      "spent_date": "2026-03-11",
       "hours": 0.75
     }
   ]
 }
 ```
+
+## `harvest submit week`
+
+Use to submit the week that contains a date for approval.
+
+This command needs Harvest website submit auth first:
+
+```bash
+harvest submit auth login --email you@example.com --save-password
+```
+
+Usage:
+
+```bash
+harvest submit week [--date today|YYYY-MM-DD] [--json]
+```
+
+Human examples:
+
+```bash
+harvest submit week
+harvest submit week --date 2026-03-09
+```
+
+Human output:
+
+```text
+Submitted week 2026-03-09 to 2026-03-15 for approval.
+```
+
+JSON example output:
+
+```json
+{
+  "ok": true,
+  "result": {
+    "action": "submitted",
+    "week_start": "2026-03-09",
+    "week_end": "2026-03-15",
+    "return_to": "/time/day/2026/3/11/4833590",
+    "submitted_before": false,
+    "submitted_after": true
+  }
+}
+```
+
+Notes:
+
+- This uses Harvest website auth, not the public API token.
+- Harvest website email/password are needed because Harvest does not expose submit-for-approval in the public API.
+- If the saved website session expires and a password is saved in Keychain, the CLI refreshes the session silently before submitting.
