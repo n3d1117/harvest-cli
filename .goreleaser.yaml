@@ -36,25 +36,3 @@ changelog:
 release:
   draft: false
   prerelease: auto
-
-# GoReleaser marks `brews` as deprecated in favor of casks, but for a CLI tap
-# formula this remains the most practical scaffold.
-brews:
-  - name: harvest
-    ids:
-      - harvest
-    homepage: "https://github.com/{{ .Env.GITHUB_REPOSITORY }}"
-    description: "Simple local-first Harvest time logging CLI"
-    license: MIT
-    directory: Formula
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} {{ .Tag }}"
-    test: |
-      system "#{bin}/harvest", "help"
-    repository:
-      owner: "{{ .Env.HOMEBREW_TAP_OWNER }}"
-      name: "{{ .Env.HOMEBREW_TAP_REPO }}"
-      branch: main
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    commit_author:
-      name: harvest-bot
-      email: harvest-bot@users.noreply.github.com
