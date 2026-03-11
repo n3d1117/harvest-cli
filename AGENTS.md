@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This repo contains a small local `harvest` CLI for logging time to Harvest. It also ships a Codex skill in `skills/harvest` that tells agents how to use the CLI safely and correctly.
+This repo contains a small `harvest` CLI for logging time to Harvest. It also ships an agent skill in `skills/harvest` that tells agents how to use the CLI safely and correctly.
 
 When you change the CLI, update the skill in the same change.
 

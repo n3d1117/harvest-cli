@@ -1,11 +1,11 @@
 ---
 name: harvest
-description: Use when working with the local `harvest` CLI to log time, check auth, inspect config, list active project/task pairs, reuse recent entries, or review today's Harvest time entries. Prefer the local CLI over direct Harvest API calls. Read the specific file in `references/` when you need exact flags, output shapes, or example output.
+description: Use when working with the `harvest` CLI to log time, check auth, inspect config, list active project/task pairs, reuse recent entries, or review today's Harvest time entries. Prefer the CLI over direct Harvest API calls. Read the specific file in `references/` when you need exact flags, output shapes, or example output.
 ---
 
 # Harvest
 
-Use the local `harvest` CLI, not direct Harvest API calls.
+Use the `harvest` CLI, not direct Harvest API calls.
 
 Assume `harvest` is on `PATH`. If it is not, install or build it first.
 

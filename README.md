@@ -2,19 +2,29 @@
 
 # harvest
 
-`harvest` is a small local CLI for logging time to Harvest.
+`harvest` is a small CLI for logging time to Harvest.
 
-The repo also contains an installable agent skill in [`skills/harvest`](skills/harvest/SKILL.md). The skill tells an agent to use the local `harvest` CLI instead of talking to Harvest directly.
+The repo also contains an installable agent skill in [`skills/harvest`](skills/harvest/SKILL.md). You can install that skill in tools such as Claude Code, Codex, Cursor, Gemini CLI, and other Agent Skills-compatible tools. The skill tells an agent to use the `harvest` CLI instead of talking to Harvest directly.
 
-## Install
+## Install the CLI
 
 ```bash
 brew install n3d1117/harvest-cli/harvest
 ```
 
+## Install the skill
+
 ```bash
 npx skills add n3d1117/harvest-cli --skill harvest
 ```
+
+## Use the skill
+
+How you invoke the skill depends on the host tool.
+
+- Claude Code: `/harvest`
+- Codex: `$harvest`
+- Natural language: `Use the harvest skill to log 1h on Acme / Development today`
 
 ## First Use
 

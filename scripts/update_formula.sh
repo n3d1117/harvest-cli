@@ -26,7 +26,7 @@ sha="$(shasum -a 256 "$tmp_tarball" | awk '{print $1}')"
 
 cat >"$formula_path" <<EOF
 class Harvest < Formula
-  desc "Simple local CLI for Harvest time logging"
+  desc "CLI for Harvest time logging"
   homepage "https://github.com/${repo}"
   url "${source_url}"
   sha256 "${sha}"
