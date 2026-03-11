@@ -13,6 +13,7 @@ type Values struct {
 	Token          string `json:"token,omitempty"`
 	DefaultProject string `json:"default_project,omitempty"`
 	DefaultTask    string `json:"default_task,omitempty"`
+	SubmitEmail    string `json:"submit_email,omitempty"`
 }
 
 type Update struct {
@@ -20,6 +21,7 @@ type Update struct {
 	Token          *string
 	DefaultProject *string
 	DefaultTask    *string
+	SubmitEmail    *string
 }
 
 type RedactedValues struct {
@@ -27,6 +29,7 @@ type RedactedValues struct {
 	TokenPresent   bool   `json:"token_present"`
 	DefaultProject string `json:"default_project,omitempty"`
 	DefaultTask    string `json:"default_task,omitempty"`
+	SubmitEmail    string `json:"submit_email,omitempty"`
 }
 
 type Store struct {
@@ -116,6 +119,7 @@ func Redacted(values Values) RedactedValues {
 		TokenPresent:   values.Token != "",
 		DefaultProject: values.DefaultProject,
 		DefaultTask:    values.DefaultTask,
+		SubmitEmail:    values.SubmitEmail,
 	}
 }
 
@@ -148,6 +152,9 @@ func mergeValues(base Values, overrides Values) Values {
 	if overrides.DefaultTask != "" {
 		base.DefaultTask = overrides.DefaultTask
 	}
+	if overrides.SubmitEmail != "" {
+		base.SubmitEmail = overrides.SubmitEmail
+	}
 	return base
 }
 
@@ -163,6 +170,9 @@ func applyUpdate(values Values, update Update) Values {
 	}
 	if update.DefaultTask != nil {
 		values.DefaultTask = *update.DefaultTask
+	}
+	if update.SubmitEmail != nil {
+		values.SubmitEmail = *update.SubmitEmail
 	}
 	return values
 }

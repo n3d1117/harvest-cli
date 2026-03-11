@@ -1,4 +1,4 @@
 interface:
   display_name: "Harvest"
-  short_description: "Use the Harvest time logging CLI"
-  default_prompt: "Use $harvest to inspect Harvest config, list projects, and log time with the CLI."
+  short_description: "Use the Harvest time logging and submit CLI"
+  default_prompt: "Use $harvest to inspect Harvest config, log time, or submit a week for approval with the CLI."
