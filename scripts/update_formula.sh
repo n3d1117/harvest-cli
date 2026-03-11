@@ -26,7 +26,7 @@ sha="$(shasum -a 256 "$tmp_tarball" | awk '{print $1}')"
 
 cat >"$formula_path" <<EOF
 class Harvest < Formula
-  desc "CLI for Harvest time logging"
+  desc "CLI for Harvest time logging and week submission"
   homepage "https://github.com/${repo}"
   url "${source_url}"
   sha256 "${sha}"
@@ -42,7 +42,7 @@ class Harvest < Formula
   end
 
   test do
-    assert_match "harvest logs time to Harvest", shell_output("\#{bin}/harvest help")
+    assert_match "harvest logs time to Harvest", shell_output("#{bin}/harvest help")
   end
 end
 EOF
