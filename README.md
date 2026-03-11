@@ -9,8 +9,11 @@ The repo also contains an installable agent skill in [`skills/harvest`](skills/h
 ## Install the CLI
 
 ```bash
+brew tap n3d1117/harvest-cli https://github.com/n3d1117/harvest-cli
 brew install n3d1117/harvest-cli/harvest
 ```
+
+Homebrew needs the explicit tap URL because the formula lives in this repo, not in a separate `homebrew-*` tap repo.
 
 ## Install the skill
 
