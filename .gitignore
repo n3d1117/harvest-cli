@@ -1,0 +1,9 @@
+.DS_Store
+
+bin/
+cli/bin/
+cli/harvest
+cli/.cache/
+cli/coverage.out
+
+*.test
