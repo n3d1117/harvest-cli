@@ -18,6 +18,13 @@ npx skills add n3d1117/harvest-cli --skill harvest-log
 
 ## First Use
 
+Get your Harvest account ID and token:
+
+1. Go to `https://id.getharvest.com/developers`
+2. Click `Create new personal access token`
+3. Give it a name
+4. Copy the account ID and the token
+
 Interactive login for humans:
 
 ```bash

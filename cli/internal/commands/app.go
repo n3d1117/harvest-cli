@@ -46,6 +46,12 @@ const loginHelp = `Usage:
 Prompt for a Harvest account ID and personal access token, validate them,
 and save them to the local config file.
 
+Get them from Harvest:
+  1. Go to https://id.getharvest.com/developers
+  2. Click Create new personal access token
+  3. Give it a name
+  4. Copy the account ID and the token
+
 Examples:
   harvest login
 `
