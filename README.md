@@ -1,3 +1,5 @@
+![Harvest logo: timesheet card](/Users/ned/Downloads/harvest/assets/harvest-logo.svg)
+
 # harvest
 
 `harvest` is a small local CLI for logging time to Harvest.
