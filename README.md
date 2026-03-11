@@ -4,7 +4,7 @@
 
 `harvest` is a small local CLI for logging time to Harvest.
 
-The repo also contains an installable agent skill in [`skills/harvest-log`](/Users/ned/Downloads/harvest/skills/harvest-log/SKILL.md). The skill is generic: it tells an agent to use the local `harvest` CLI instead of talking to Harvest directly.
+The repo also contains an installable agent skill in [`skills/harvest`](skills/harvest/SKILL.md). The skill tells an agent to use the local `harvest` CLI instead of talking to Harvest directly.
 
 ## Install
 
@@ -13,7 +13,7 @@ brew install n3d1117/harvest-cli/harvest
 ```
 
 ```bash
-npx skills add n3d1117/harvest-cli --skill harvest-log
+npx skills add n3d1117/harvest-cli --skill harvest
 ```
 
 ## First Use
