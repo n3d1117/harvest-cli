@@ -1,14 +1,18 @@
-# Harvest Errors And JSON Summary
+# Harvest Help And Errors
 
-Use this file for top-level JSON wrapper summaries and common CLI error strings.
+Use this file for help entry points, JSON wrappers, and common CLI errors.
 
-If you need the real help text, run `harvest help`, `harvest help config`, or `harvest help submit`.
+## Help Entry Points
 
-Nested help topics such as `harvest help config show` and `harvest help submit auth` are not supported.
+Supported help commands:
+
+- `harvest help`
+- `harvest help config`
+- `harvest help submit`
+
+Use this reference for `submit auth` details.
 
 ## Top-Level Commands
-
-Current top-level commands:
 
 - `login`
 - `config`
@@ -20,22 +24,18 @@ Current top-level commands:
 - `today`
 - `help`
 
-## JSON Shapes
+## JSON Wrappers
 
-These are the top-level JSON wrappers:
-
-- `config show --json`: `{ "ok": true, "config_path": "...", "config": { ... } }`
-- `submit auth status --json`: `{ "ok": true, "status": { ... } }`
-- `submit week --json`: `{ "ok": true, "result": { ... } }`
-- `whoami --json`: `{ "ok": true, "user": { ... } }`
-- `projects --json`: `{ "ok": true, "projects": [ ... ] }`
-- `recent --json`: `{ "ok": true, "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "entries": [ ... ] }`
-- `log --json`: `{ "ok": true, "entry": { ... } }`
-- `today --json`: `{ "ok": true, "date": "YYYY-MM-DD", "total_hours": 0, "entries": [ ... ] }`
+- `harvest config show --json`: `{ "ok": true, "config_path": "...", "config": { ... } }`
+- `harvest submit auth status --json`: `{ "ok": true, "status": { ... } }`
+- `harvest submit week --json`: `{ "ok": true, "result": { ... } }`
+- `harvest whoami --json`: `{ "ok": true, "user": { ... } }`
+- `harvest projects --json`: `{ "ok": true, "projects": [ ... ] }`
+- `harvest recent --json`: `{ "ok": true, "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "entries": [ ... ] }`
+- `harvest log --json`: `{ "ok": true, "entry": { ... } }`
+- `harvest today --json`: `{ "ok": true, "date": "YYYY-MM-DD", "total_hours": 0, "entries": [ ... ] }`
 
 ## Common Errors
-
-These strings come from the CLI and are safe to quote back to the user.
 
 Missing API credentials:
 
@@ -49,7 +49,7 @@ Missing submit auth:
 error: submit auth is not configured; run `harvest submit auth login` first
 ```
 
-Expired submit auth without saved password:
+Expired submit auth without a saved password:
 
 ```text
 error: submit auth expired; run `harvest submit auth login` again or save a password with `--save-password`

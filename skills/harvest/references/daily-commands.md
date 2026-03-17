@@ -1,33 +1,96 @@
 # Harvest Daily Commands
 
-Use this file for day-to-day CLI work: auth checks, listing projects, recent entries, logging time, reviewing today's entries, and submitting a week for approval.
+Use this file for `whoami`, `projects`, `recent`, `log`, `today`, and `submit week`.
 
-## Contents
+## Commands
 
-1. `whoami`
-2. `projects`
-3. `recent`
-4. `log`
-5. `today`
-6. `submit week`
-
-## `harvest whoami`
-
-Use to verify public API auth and show the current Harvest user.
-
-Usage:
-
-```bash
-harvest whoami [--json]
-```
-
-Human example:
+Check auth:
 
 ```bash
 harvest whoami
+harvest whoami --json
 ```
 
-Human output:
+List active project/task pairs:
+
+```bash
+harvest projects
+harvest projects --json
+```
+
+Show recent entries:
+
+```bash
+harvest recent
+harvest recent --limit 5 --days 30 --json
+```
+
+Create a time entry:
+
+```bash
+harvest log --project "Acme" --task "Development" --duration 1h30m
+harvest log --duration 45m --date today --notes "Bug fix"
+harvest log --project "Acme" --task "Development" --duration 1h --json
+```
+
+Review today:
+
+```bash
+harvest today
+harvest today --json
+```
+
+Submit a week:
+
+```bash
+harvest submit week
+harvest submit week --date today
+harvest submit week --date 2026-03-09 --json
+```
+
+## Flags
+
+`harvest whoami`
+
+- `--json`
+
+`harvest projects`
+
+- `--json`
+
+`harvest recent`
+
+- `--limit <n>` default `10`
+- `--days <n>` default `90`
+- `--json`
+
+`harvest log`
+
+- `--project string`
+- `--task string`
+- `--duration string`
+- `--date string`
+- `--notes, -n string`
+- `--json`
+
+Short aliases:
+
+- `-p` for `--project`
+- `-t` for `--task`
+- `-n` for `--notes`
+
+`harvest today`
+
+- `--json`
+
+`harvest submit week`
+
+- `--date today|YYYY-MM-DD`
+- `--json`
+
+## Output Shape
+
+`harvest whoami`
 
 ```text
 Ned Tester
@@ -35,7 +98,7 @@ Email: ned@example.com
 User ID: 1
 ```
 
-JSON example output:
+`harvest whoami --json`
 
 ```json
 {
@@ -49,17 +112,7 @@ JSON example output:
 }
 ```
 
-## `harvest projects`
-
-Use to list active project/task pairs you are allowed to log against.
-
-Usage:
-
-```bash
-harvest projects [--json]
-```
-
-Human output:
+`harvest projects`
 
 ```text
 PROJECT  TASK         PROJECT ID  TASK ID
@@ -67,7 +120,7 @@ Acme     Design       11          21
 Acme     Development  11          22
 ```
 
-JSON example output:
+`harvest projects --json`
 
 ```json
 {
@@ -89,27 +142,7 @@ JSON example output:
 }
 ```
 
-Notes:
-
-- Inactive projects and inactive tasks are filtered out.
-- Use this command to resolve exact project/task names before calling `harvest log`.
-
-## `harvest recent`
-
-Use to inspect recent entries and reuse a known-good project/task pair.
-
-Usage:
-
-```bash
-harvest recent [--limit <n>] [--days <n>] [--json]
-```
-
-Defaults:
-
-- `--limit 10`
-- `--days 90`
-
-Human output:
+`harvest recent`
 
 ```text
 DATE        PROJECT  TASK         HOURS  NOTES
@@ -118,7 +151,7 @@ DATE        PROJECT  TASK         HOURS  NOTES
 2026-03-09  Acme     Design       0.50   Wireframes
 ```
 
-JSON example output:
+`harvest recent --json`
 
 ```json
 {
@@ -144,60 +177,14 @@ JSON example output:
 }
 ```
 
-## `harvest log`
-
-Use to create a time entry.
-
-Usage:
-
-```bash
-harvest log --project <name> --task <name> --duration <duration> [flags]
-```
-
-Flags:
-
-```text
---project string
---task string
---duration string
---date string
---notes, -n string
---json
-```
-
-Short aliases:
-
-- `-p` for `--project`
-- `-t` for `--task`
-- `-n` for `--notes`
-
-Rules:
-
-- `--duration` is required.
-- Duration uses Go duration strings like `45m`, `1h30m`, and `2h`.
-- `--date` defaults to local today.
-- `--date` accepts `today` or `YYYY-MM-DD`.
-- `--project` and `--task` can come from config defaults or env vars.
-
-Human example:
-
-```bash
-harvest log \
-  --project "Acme" \
-  --task "Development" \
-  --duration 1h30m \
-  --date today \
-  --notes "CLI scaffolding"
-```
-
-Human output:
+`harvest log`
 
 ```text
 Logged 1.50h on 2026-03-11 to Acme / Development (#44).
 Notes: CLI scaffolding
 ```
 
-JSON example output:
+`harvest log --json`
 
 ```json
 {
@@ -214,17 +201,7 @@ JSON example output:
 }
 ```
 
-## `harvest today`
-
-Use to review today's time entries and total.
-
-Usage:
-
-```bash
-harvest today [--json]
-```
-
-Human output:
+`harvest today`
 
 ```text
 DATE        PROJECT  TASK         HOURS  NOTES
@@ -233,7 +210,7 @@ DATE        PROJECT  TASK         HOURS  NOTES
 TOTAL                             2.00
 ```
 
-JSON example output:
+`harvest today --json`
 
 ```json
 {
@@ -253,36 +230,13 @@ JSON example output:
 }
 ```
 
-## `harvest submit week`
-
-Use to submit the week that contains a date for approval.
-
-This command needs Harvest website submit auth first:
-
-```bash
-harvest submit auth login --email you@example.com --save-password
-```
-
-Usage:
-
-```bash
-harvest submit week [--date today|YYYY-MM-DD] [--json]
-```
-
-Human examples:
-
-```bash
-harvest submit week
-harvest submit week --date 2026-03-09
-```
-
-Human output:
+`harvest submit week`
 
 ```text
 Submitted week 2026-03-09 to 2026-03-15 for approval.
 ```
 
-JSON example output:
+`harvest submit week --json`
 
 ```json
 {
@@ -298,8 +252,21 @@ JSON example output:
 }
 ```
 
-Notes:
+## Workflow
 
-- This uses Harvest website auth, not the public API token.
-- Harvest website email/password are needed because Harvest does not expose submit-for-approval in the public API.
-- If the saved website session expires and a password is saved in Keychain, the CLI refreshes the session silently before submitting.
+1. Run `harvest projects --json` if project or task names are unknown.
+2. Run `harvest recent --json` if the user wants to reuse a recent pair.
+3. Run `harvest log ...`.
+4. Verify with `harvest today --json`.
+5. Run `harvest submit auth status` before `harvest submit week`.
+
+## Notes
+
+- `harvest projects` filters out inactive projects and tasks.
+- `harvest log` requires `--duration`.
+- Duration uses Go duration strings like `45m`, `1h30m`, and `2h`.
+- `--date` defaults to local today.
+- `--date` accepts `today` or `YYYY-MM-DD`.
+- `--project` and `--task` can come from config defaults or environment variables.
+- `submit week` uses Harvest website auth.
+- If the saved website session expires and a password is in Keychain, the CLI refreshes the session before submitting.
