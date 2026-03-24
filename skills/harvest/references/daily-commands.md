@@ -307,16 +307,18 @@ Dry run: would submit week 2026-03-09 to 2026-03-15 for approval.
 
 ## Workflow
 
-1. Run `harvest projects --json` if project or task names are unknown.
-2. Run `harvest recent --json` if the user wants to reuse a recent pair.
-3. Run `harvest log --dry-run ...` when the user wants a preview, otherwise `harvest log ...`.
-4. Run `harvest submit week --dry-run ...` when the user wants a submit preview.
+1. Ask what the user worked on for each day in the target period unless they already gave exact entries or explicitly asked to reuse recent entries.
+2. Run `harvest projects --json` if project or task names are unknown.
+3. Run `harvest recent --json` if the user wants to reuse a recent pair.
+4. Run `harvest log --dry-run ...` when the user wants a preview, otherwise `harvest log ...`.
 5. Verify with `harvest today --json`.
-5. Run `harvest submit auth status` before `harvest submit week`.
+6. Run `harvest submit auth status` before `harvest submit week`.
+7. Run `harvest submit week --dry-run ...` when the user wants a submit preview.
 
 ## Notes
 
 - `harvest projects` filters out inactive projects and tasks.
+- Before `harvest log` or `harvest submit week`, gather the user's day-by-day work details unless exact entries are already known.
 - `harvest log` requires `--duration`.
 - Duration uses Go duration strings like `45m`, `1h30m`, and `2h`.
 - `--date` defaults to local today.

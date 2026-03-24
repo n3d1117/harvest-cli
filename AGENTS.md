@@ -22,4 +22,8 @@ Update the skill when any of these change:
 
 Do not merge a CLI change that makes the skill docs stale.
 
+Agent workflow expectation:
+
+- Before logging time or submitting a week for a user, ask what they worked on for each day in the target period unless they already gave exact dates, durations, project/task pairs, or explicitly asked to reuse recent entries.
+
 Use Conventional Commits for commit messages.
