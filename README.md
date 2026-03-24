@@ -124,6 +124,13 @@ harvest log \
   --duration 1h30m \
   --date today \
   --notes "CLI scaffolding"
+
+harvest log \
+  --project "Acme" \
+  --task "Development" \
+  --duration 1h30m \
+  --date today \
+  --dry-run
 ```
 
 Review today:
@@ -138,6 +145,27 @@ Submit the week that contains a date:
 harvest submit week --date today
 ```
 
+## Dry Run
+
+Use `--dry-run` to validate and preview a write without changing Harvest state.
+
+Preview a time entry:
+
+```bash
+harvest log \
+  --project "Acme" \
+  --task "Development" \
+  --duration 1h30m \
+  --date today \
+  --dry-run
+```
+
+Preview a weekly submit:
+
+```bash
+harvest submit week --date today --dry-run
+```
+
 ## JSON
 
 These commands support `--json`:
@@ -146,9 +174,11 @@ These commands support `--json`:
 harvest config show --json
 harvest projects --json
 harvest recent --json
+harvest log --project "Acme" --task "Development" --duration 1h --dry-run --json
 harvest log --project "Acme" --task "Development" --duration 1h --json
 harvest today --json
 harvest submit auth status --json
+harvest submit week --date 2026-03-09 --dry-run --json
 harvest submit week --date 2026-03-09 --json
 ```
 

@@ -64,7 +64,7 @@ Delete the saved Harvest website submit email, password, and session.
 `
 
 const submitWeekHelp = `Usage:
-  harvest submit week [--date today|YYYY-MM-DD] [--json]
+  harvest submit week [--date today|YYYY-MM-DD] [--dry-run] [--json]
 
 Submit the week that contains the given date for approval.
 
@@ -72,9 +72,11 @@ Notes:
   - This uses Harvest website auth and the private web submit flow.
   - Run ` + "`harvest submit auth login`" + ` first.
   - ` + "`--date`" + ` defaults to local today.
+  - ` + "`--dry-run`" + ` validates the week and submit auth without posting the final submit request.
 
 Examples:
   harvest submit week
   harvest submit week --date today
+  harvest submit week --date today --dry-run
   harvest submit week --date 2026-03-09 --json
 `

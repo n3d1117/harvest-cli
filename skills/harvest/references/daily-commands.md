@@ -29,7 +29,9 @@ Create a time entry:
 
 ```bash
 harvest log --project "Acme" --task "Development" --duration 1h30m
+harvest log --project "Acme" --task "Development" --duration 1h30m --dry-run
 harvest log --duration 45m --date today --notes "Bug fix"
+harvest log --project "Acme" --task "Development" --duration 1h --dry-run --json
 harvest log --project "Acme" --task "Development" --duration 1h --json
 ```
 
@@ -45,6 +47,8 @@ Submit a week:
 ```bash
 harvest submit week
 harvest submit week --date today
+harvest submit week --date today --dry-run
+harvest submit week --date 2026-03-09 --dry-run --json
 harvest submit week --date 2026-03-09 --json
 ```
 
@@ -71,6 +75,7 @@ harvest submit week --date 2026-03-09 --json
 - `--duration string`
 - `--date string`
 - `--notes, -n string`
+- `--dry-run`
 - `--json`
 
 Short aliases:
@@ -86,6 +91,7 @@ Short aliases:
 `harvest submit week`
 
 - `--date today|YYYY-MM-DD`
+- `--dry-run`
 - `--json`
 
 ## Output Shape
@@ -201,6 +207,31 @@ Notes: CLI scaffolding
 }
 ```
 
+`harvest log --dry-run`
+
+```text
+Dry run: would log 1.50h on 2026-03-11 to Acme / Development.
+Notes: CLI scaffolding
+```
+
+`harvest log --dry-run --json`
+
+```json
+{
+  "ok": true,
+  "dry_run": true,
+  "entry": {
+    "date": "2026-03-11",
+    "hours": 1.5,
+    "project_id": 11,
+    "project": "Acme",
+    "task_id": 22,
+    "task": "Development",
+    "notes": "CLI scaffolding"
+  }
+}
+```
+
 `harvest today`
 
 ```text
@@ -252,12 +283,35 @@ Submitted week 2026-03-09 to 2026-03-15 for approval.
 }
 ```
 
+`harvest submit week --dry-run`
+
+```text
+Dry run: would submit week 2026-03-09 to 2026-03-15 for approval.
+```
+
+`harvest submit week --dry-run --json`
+
+```json
+{
+  "ok": true,
+  "dry_run": true,
+  "result": {
+    "action": "would_submit",
+    "week_start": "2026-03-09",
+    "week_end": "2026-03-15",
+    "return_to": "/time/day/2026/3/11/4833590",
+    "submitted_before": false
+  }
+}
+```
+
 ## Workflow
 
 1. Run `harvest projects --json` if project or task names are unknown.
 2. Run `harvest recent --json` if the user wants to reuse a recent pair.
-3. Run `harvest log ...`.
-4. Verify with `harvest today --json`.
+3. Run `harvest log --dry-run ...` when the user wants a preview, otherwise `harvest log ...`.
+4. Run `harvest submit week --dry-run ...` when the user wants a submit preview.
+5. Verify with `harvest today --json`.
 5. Run `harvest submit auth status` before `harvest submit week`.
 
 ## Notes

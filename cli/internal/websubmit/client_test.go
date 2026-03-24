@@ -16,6 +16,7 @@ func TestLoginAndSubmitWeek(t *testing.T) {
 	t.Parallel()
 
 	var submitForm url.Values
+	submitCalls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/harvest/sign_in":
@@ -47,6 +48,7 @@ func TestLoginAndSubmitWeek(t *testing.T) {
 		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/time/day/2026/3/11/"):
 			fmt.Fprint(w, pageHTML(r.URL.Path, "2026-03-09", false, false))
 		case r.Method == http.MethodPost && r.URL.Path == "/daily/review":
+			submitCalls++
 			if err := r.ParseForm(); err != nil {
 				t.Fatalf("parse submit form: %v", err)
 			}
@@ -76,12 +78,26 @@ func TestLoginAndSubmitWeek(t *testing.T) {
 		t.Fatalf("unexpected base url: %q", state.BaseURL)
 	}
 
+	preview, err := client.PreviewSubmitWeek(context.Background(), time.Date(2026, 3, 11, 9, 0, 0, 0, time.Local))
+	if err != nil {
+		t.Fatalf("preview submit week failed: %v", err)
+	}
+	if preview.Action != "would_submit" {
+		t.Fatalf("unexpected preview action: %q", preview.Action)
+	}
+	if submitCalls != 0 {
+		t.Fatalf("expected preview to skip submit post, got %d calls", submitCalls)
+	}
+
 	result, err := client.SubmitWeek(context.Background(), time.Date(2026, 3, 11, 9, 0, 0, 0, time.Local), time.Date(2026, 3, 11, 12, 0, 0, 0, time.Local))
 	if err != nil {
 		t.Fatalf("submit week failed: %v", err)
 	}
 	if result.Action != "submitted" {
 		t.Fatalf("unexpected action: %q", result.Action)
+	}
+	if submitCalls != 1 {
+		t.Fatalf("expected one submit post, got %d", submitCalls)
 	}
 	if got := submitForm.Get("period_begin"); got != "68" {
 		t.Fatalf("unexpected period_begin: %q", got)

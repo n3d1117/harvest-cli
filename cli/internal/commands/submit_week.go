@@ -15,6 +15,7 @@ import (
 func (a *App) runSubmitWeek(args []string) error {
 	fs := newFlagSet("submit week", submitWeekHelp, a.Stdout, a.Stderr)
 	dateFlag := fs.String("date", "", "Date in YYYY-MM-DD or `today`")
+	dryRun := fs.Bool("dry-run", false, "Validate and preview the submit without sending it")
 	jsonOutput := fs.Bool("json", false, "Print JSON")
 
 	if err := fs.Parse(args); err != nil {
@@ -54,7 +55,14 @@ func (a *App) runSubmitWeek(args []string) error {
 		return err
 	}
 
-	result, err := client.SubmitWeek(a.context(), date, a.Now())
+	runSubmit := func() (websubmit.SubmitResult, error) {
+		if *dryRun {
+			return client.PreviewSubmitWeek(a.context(), date)
+		}
+		return client.SubmitWeek(a.context(), date, a.Now())
+	}
+
+	result, err := runSubmit()
 	if errors.Is(err, websubmit.ErrUnauthenticated) {
 		password, loadErr := a.submitSecretStore().Load(a.context(), secretstore.ServiceSubmitPassword, submitEmail)
 		if loadErr != nil {
@@ -66,17 +74,43 @@ func (a *App) runSubmitWeek(args []string) error {
 		if _, err := client.Login(a.context(), submitEmail, password); err != nil {
 			return &exitError{Code: 3, Message: fmt.Sprintf("submit auth refresh failed: %v", err)}
 		}
-		result, err = client.SubmitWeek(a.context(), date, a.Now())
+		result, err = runSubmit()
 	}
 	if err != nil {
 		return err
 	}
 
-	if err := a.saveSubmitSession(submitEmail, client); err != nil {
-		return err
+	if !*dryRun {
+		if err := a.saveSubmitSession(submitEmail, client); err != nil {
+			return err
+		}
 	}
 
 	if *jsonOutput {
+		if *dryRun {
+			return output.JSON(a.Stdout, struct {
+				OK     bool `json:"ok"`
+				DryRun bool `json:"dry_run"`
+				Result any  `json:"result"`
+			}{
+				OK:     true,
+				DryRun: true,
+				Result: struct {
+					Action          string `json:"action"`
+					WeekStart       string `json:"week_start"`
+					WeekEnd         string `json:"week_end"`
+					ReturnTo        string `json:"return_to"`
+					SubmittedBefore bool   `json:"submitted_before"`
+				}{
+					Action:          result.Action,
+					WeekStart:       result.WeekStart,
+					WeekEnd:         result.WeekEnd,
+					ReturnTo:        result.ReturnTo,
+					SubmittedBefore: result.SubmittedBefore,
+				},
+			})
+		}
+
 		return output.JSON(a.Stdout, struct {
 			OK     bool                   `json:"ok"`
 			Result websubmit.SubmitResult `json:"result"`
@@ -87,9 +121,14 @@ func (a *App) runSubmitWeek(args []string) error {
 	}
 
 	verb := map[string]string{
-		"submitted":   "Submitted",
-		"resubmitted": "Resubmitted",
+		"submitted":      "Submitted",
+		"resubmitted":    "Resubmitted",
+		"would_submit":   "Dry run: would submit",
+		"would_resubmit": "Dry run: would resubmit",
 	}[result.Action]
+	if verb == "" && *dryRun {
+		verb = "Dry run: would submit"
+	}
 	if verb == "" {
 		verb = "Submitted"
 	}

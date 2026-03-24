@@ -51,6 +51,10 @@ type fakeSubmitClient struct {
 	exportedSession  websubmit.Session
 	restoreSession   websubmit.Session
 	restoreWasCalled bool
+	previewResult    websubmit.SubmitResult
+	previewErr       error
+	previewCalls     int
+	previewDate      time.Time
 	submitResult     websubmit.SubmitResult
 	submitErr        error
 	submitCalls      int
@@ -77,6 +81,17 @@ func (f *fakeSubmitClient) Login(_ context.Context, email, password string) (web
 	f.loginEmail = email
 	f.loginPassword = password
 	return f.loginState, nil
+}
+
+func (f *fakeSubmitClient) PreviewSubmitWeek(_ context.Context, date time.Time) (websubmit.SubmitResult, error) {
+	f.previewCalls++
+	f.previewDate = date
+	err := f.previewErr
+	f.previewErr = nil
+	if err != nil {
+		return websubmit.SubmitResult{}, err
+	}
+	return f.previewResult, nil
 }
 
 func (f *fakeSubmitClient) SubmitWeek(_ context.Context, date, now time.Time) (websubmit.SubmitResult, error) {
@@ -236,5 +251,94 @@ func TestSubmitWeekRefreshesExpiredSessionWithSavedPassword(t *testing.T) {
 	}
 	if !strings.Contains(secrets.items[secretstore.ServiceSubmitSession+"|"+submitEmail], `"value":"new"`) {
 		t.Fatalf("expected refreshed session to be saved, got %q", secrets.items[secretstore.ServiceSubmitSession+"|"+submitEmail])
+	}
+}
+
+func TestSubmitWeekDryRunRefreshesExpiredSessionWithoutPersistingIt(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "1450071"
+	submitEmail := "ned@example.com"
+	if _, err := store.Save(config.Update{
+		AccountID:   &accountID,
+		SubmitEmail: &submitEmail,
+	}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	originalSession := `{"base_url":"https://shapegames.harvestapp.com","harvest_cookies":[{"name":"_harvest_sess","value":"old"}]}`
+	secrets := &fakeSubmitSecretStore{
+		items: map[string]string{
+			secretstore.ServiceSubmitPassword + "|" + submitEmail: "secret-password",
+			secretstore.ServiceSubmitSession + "|" + submitEmail:  originalSession,
+		},
+	}
+
+	submitClient := &fakeSubmitClient{
+		loginState: websubmit.AuthState{
+			BaseURL:          "https://shapegames.harvestapp.com",
+			SessionExpiresAt: time.Date(2026, 3, 26, 18, 13, 1, 0, time.UTC),
+		},
+		previewErr: websubmit.ErrUnauthenticated,
+		previewResult: websubmit.SubmitResult{
+			Action:          "would_submit",
+			WeekStart:       "2026-03-09",
+			WeekEnd:         "2026-03-15",
+			ReturnTo:        "/time/day/2026/3/11/99",
+			SubmittedBefore: false,
+		},
+		exportedSession: websubmit.Session{
+			BaseURL: "https://shapegames.harvestapp.com",
+			HarvestCookies: []websubmit.Cookie{
+				{Name: "_harvest_sess", Value: "new", Expires: time.Date(2026, 3, 26, 18, 13, 1, 0, time.UTC)},
+			},
+		},
+	}
+
+	var stdout bytes.Buffer
+	app := &App{
+		Store:  store,
+		Prompt: &fakePrompt{},
+		Stdout: &stdout,
+		Stderr: &bytes.Buffer{},
+		Now: func() time.Time {
+			return time.Date(2026, 3, 11, 12, 0, 0, 0, time.Local)
+		},
+		Context:       context.Background(),
+		SubmitSecrets: secrets,
+		SubmitClientFactory: func(accountID string) (SubmitClient, error) {
+			return submitClient, nil
+		},
+	}
+
+	if err := app.Execute([]string{"submit", "week", "--date", "today", "--dry-run", "--json"}); err != nil {
+		t.Fatalf("submit week dry run failed: %v", err)
+	}
+
+	if !submitClient.restoreWasCalled {
+		t.Fatalf("expected saved session to be restored")
+	}
+	if submitClient.loginCalls != 1 {
+		t.Fatalf("expected login refresh, got %d", submitClient.loginCalls)
+	}
+	if submitClient.previewCalls != 2 {
+		t.Fatalf("expected preview retry, got %d", submitClient.previewCalls)
+	}
+	if submitClient.submitCalls != 0 {
+		t.Fatalf("expected submit to be skipped, got %d", submitClient.submitCalls)
+	}
+	if submitClient.previewDate.Format("2006-01-02") != "2026-03-11" {
+		t.Fatalf("unexpected preview date: %s", submitClient.previewDate)
+	}
+	if got := secrets.items[secretstore.ServiceSubmitSession+"|"+submitEmail]; got != originalSession {
+		t.Fatalf("expected session store to stay unchanged, got %q", got)
+	}
+	if !strings.Contains(stdout.String(), `"dry_run": true`) {
+		t.Fatalf("expected dry run json output, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), `"action": "would_submit"`) {
+		t.Fatalf("expected preview action in output, got %q", stdout.String())
 	}
 }

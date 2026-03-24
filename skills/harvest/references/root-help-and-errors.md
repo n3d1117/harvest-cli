@@ -29,10 +29,12 @@ Use this reference for `submit auth` details.
 - `harvest config show --json`: `{ "ok": true, "config_path": "...", "config": { ... } }`
 - `harvest submit auth status --json`: `{ "ok": true, "status": { ... } }`
 - `harvest submit week --json`: `{ "ok": true, "result": { ... } }`
+- `harvest submit week --dry-run --json`: `{ "ok": true, "dry_run": true, "result": { ... } }`
 - `harvest whoami --json`: `{ "ok": true, "user": { ... } }`
 - `harvest projects --json`: `{ "ok": true, "projects": [ ... ] }`
 - `harvest recent --json`: `{ "ok": true, "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "entries": [ ... ] }`
 - `harvest log --json`: `{ "ok": true, "entry": { ... } }`
+- `harvest log --dry-run --json`: `{ "ok": true, "dry_run": true, "entry": { ... } }`
 - `harvest today --json`: `{ "ok": true, "date": "YYYY-MM-DD", "total_hours": 0, "entries": [ ... ] }`
 
 ## Common Errors

@@ -48,6 +48,15 @@ type SubmitResult struct {
 	SubmittedAfter  bool   `json:"submitted_after"`
 }
 
+type submitWeekPlan struct {
+	CSRFToken       string
+	OfUserID        int64
+	ReturnTo        string
+	SubmittedBefore bool
+	WeekStart       time.Time
+	WeekEnd         time.Time
+}
+
 type Client struct {
 	AccountID      string
 	BaseURL        string

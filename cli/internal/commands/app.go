@@ -123,6 +123,7 @@ Flags:
   --duration string
   --date string
   --notes, -n string
+  --dry-run
   --json
 
 Notes:
@@ -130,9 +131,11 @@ Notes:
   - Date defaults to local today in YYYY-MM-DD.
   - Date also accepts the literal value "today".
   - Project and task can come from config defaults.
+  - Dry run validates and resolves the exact project/task pair without creating an entry.
 
 Examples:
   harvest log --project "Acme" --task "Development" --duration 1h30m
+  harvest log --project "Acme" --task "Development" --duration 1h30m --dry-run
   harvest log --duration 45m --date today --notes "Bug fix"
 `
 
@@ -162,6 +165,7 @@ type SubmitClient interface {
 	ExportSession() (websubmit.Session, error)
 	SessionState() websubmit.AuthState
 	Login(context.Context, string, string) (websubmit.AuthState, error)
+	PreviewSubmitWeek(context.Context, time.Time) (websubmit.SubmitResult, error)
 	SubmitWeek(context.Context, time.Time, time.Time) (websubmit.SubmitResult, error)
 }
 
@@ -638,6 +642,7 @@ func (a *App) runLog(args []string) error {
 	duration := fs.String("duration", "", "Go duration string like 45m or 1h30m")
 	date := fs.String("date", "", "Date in YYYY-MM-DD")
 	notes := fs.String("notes", "", "Optional entry notes")
+	dryRun := fs.Bool("dry-run", false, "Validate and print the resolved entry without creating it")
 	fs.Var(&projectFlag, "project", "Project name")
 	fs.Var(&taskFlag, "task", "Task name")
 	fs.Var(&projectFlag, "p", "Project name")
@@ -694,6 +699,45 @@ func (a *App) runLog(args []string) error {
 		return &exitError{Code: 2, Message: err.Error()}
 	}
 
+	result := struct {
+		ID        *int64  `json:"id,omitempty"`
+		Date      string  `json:"date"`
+		Hours     float64 `json:"hours"`
+		Notes     string  `json:"notes,omitempty"`
+		ProjectID int64   `json:"project_id"`
+		Project   string  `json:"project"`
+		TaskID    int64   `json:"task_id"`
+		Task      string  `json:"task"`
+	}{
+		Date:      entryDate,
+		Hours:     hours,
+		Notes:     strings.TrimSpace(*notes),
+		ProjectID: pair.ProjectID,
+		Project:   pair.ProjectName,
+		TaskID:    pair.TaskID,
+		Task:      pair.TaskName,
+	}
+
+	if *dryRun {
+		if *jsonOutput {
+			return output.JSON(a.Stdout, struct {
+				OK     bool `json:"ok"`
+				DryRun bool `json:"dry_run"`
+				Entry  any  `json:"entry"`
+			}{
+				OK:     true,
+				DryRun: true,
+				Entry:  result,
+			})
+		}
+
+		fmt.Fprintf(a.Stdout, "Dry run: would log %.2fh on %s to %s / %s.\n", result.Hours, result.Date, result.Project, result.Task)
+		if result.Notes != "" {
+			fmt.Fprintf(a.Stdout, "Notes: %s\n", result.Notes)
+		}
+		return nil
+	}
+
 	entry, err := client.CreateTimeEntry(a.context(), harvestapi.CreateTimeEntryInput{
 		ProjectID: pair.ProjectID,
 		TaskID:    pair.TaskID,
@@ -705,25 +749,7 @@ func (a *App) runLog(args []string) error {
 		return err
 	}
 
-	result := struct {
-		ID        int64   `json:"id"`
-		Date      string  `json:"date"`
-		Hours     float64 `json:"hours"`
-		Notes     string  `json:"notes,omitempty"`
-		ProjectID int64   `json:"project_id"`
-		Project   string  `json:"project"`
-		TaskID    int64   `json:"task_id"`
-		Task      string  `json:"task"`
-	}{
-		ID:        entry.ID,
-		Date:      entryDate,
-		Hours:     hours,
-		Notes:     strings.TrimSpace(*notes),
-		ProjectID: pair.ProjectID,
-		Project:   pair.ProjectName,
-		TaskID:    pair.TaskID,
-		Task:      pair.TaskName,
-	}
+	result.ID = &entry.ID
 
 	if *jsonOutput {
 		return output.JSON(a.Stdout, struct {
@@ -735,7 +761,7 @@ func (a *App) runLog(args []string) error {
 		})
 	}
 
-	fmt.Fprintf(a.Stdout, "Logged %.2fh on %s to %s / %s (#%d).\n", result.Hours, result.Date, result.Project, result.Task, result.ID)
+	fmt.Fprintf(a.Stdout, "Logged %.2fh on %s to %s / %s (#%d).\n", result.Hours, result.Date, result.Project, result.Task, *result.ID)
 	if result.Notes != "" {
 		fmt.Fprintf(a.Stdout, "Notes: %s\n", result.Notes)
 	}

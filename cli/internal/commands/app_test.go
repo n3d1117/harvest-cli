@@ -260,6 +260,92 @@ func TestLogAcceptsTodayLiteral(t *testing.T) {
 	}
 }
 
+func TestLogDryRunJSONResolvesWithoutCreatingEntry(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	defaultProject := "Acme"
+	defaultTask := "Development"
+	if _, err := store.Save(config.Update{
+		AccountID:      &accountID,
+		Token:          &token,
+		DefaultProject: &defaultProject,
+		DefaultTask:    &defaultTask,
+	}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	client := &fakeClient{
+		assignments: []harvestapi.ProjectAssignment{
+			{
+				ID:       1,
+				IsActive: true,
+				Project:  harvestapi.Project{ID: 11, Name: "Acme"},
+				TaskAssignments: []harvestapi.TaskAssignment{
+					{ID: 2, IsActive: true, Task: harvestapi.Task{ID: 22, Name: "Development"}},
+				},
+			},
+		},
+	}
+
+	var stdout bytes.Buffer
+	app := &App{
+		Store:  store,
+		Prompt: &fakePrompt{},
+		Stdout: &stdout,
+		Stderr: &bytes.Buffer{},
+		Now: func() time.Time {
+			return time.Date(2026, 3, 11, 9, 0, 0, 0, time.Local)
+		},
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return client, nil
+		},
+	}
+
+	if err := app.Execute([]string{"log", "--duration", "45m", "--dry-run", "--json"}); err != nil {
+		t.Fatalf("log dry run failed: %v", err)
+	}
+	if client.createWasCalled {
+		t.Fatalf("expected dry run to skip create")
+	}
+	if !client.projectsCalled {
+		t.Fatalf("expected dry run to resolve project assignments")
+	}
+
+	var payload struct {
+		OK     bool `json:"ok"`
+		DryRun bool `json:"dry_run"`
+		Entry  struct {
+			ID        *int64  `json:"id"`
+			Date      string  `json:"date"`
+			Hours     float64 `json:"hours"`
+			ProjectID int64   `json:"project_id"`
+			Project   string  `json:"project"`
+			TaskID    int64   `json:"task_id"`
+			Task      string  `json:"task"`
+		} `json:"entry"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if !payload.OK || !payload.DryRun {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+	if payload.Entry.ID != nil {
+		t.Fatalf("expected no entry id in dry run, got %v", *payload.Entry.ID)
+	}
+	if payload.Entry.Date != "2026-03-11" || payload.Entry.Hours != 0.75 {
+		t.Fatalf("unexpected entry payload: %+v", payload.Entry)
+	}
+	if payload.Entry.ProjectID != 11 || payload.Entry.TaskID != 22 {
+		t.Fatalf("unexpected resolved ids: %+v", payload.Entry)
+	}
+}
+
 func TestTodayJSON(t *testing.T) {
 	t.Parallel()
 

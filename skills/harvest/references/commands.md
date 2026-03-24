@@ -32,6 +32,7 @@ Use this file when you only need the command surface.
 ## Notes
 
 - `config show`, `whoami`, `projects`, `recent`, `log`, `today`, `submit auth status`, and `submit week` support `--json`.
+- `harvest log` and `harvest submit week` also support `--dry-run`.
 - Public API commands use Harvest account ID and personal access token.
 - `submit` uses Harvest website auth.
 - Saved submit passwords and website session cookies live in macOS Keychain.

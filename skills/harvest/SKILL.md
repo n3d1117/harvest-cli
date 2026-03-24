@@ -26,11 +26,11 @@ Open only the file you need.
 2. If public API auth is missing, run `harvest login` or `harvest config set`.
 3. If project or task names are unknown, run `harvest projects --json`.
 4. If the user wants a recent pair, run `harvest recent --json`.
-5. Log time with `harvest log ...`.
+5. Preview with `harvest log --dry-run ...` or log time with `harvest log ...`.
 6. Verify with `harvest today --json`.
 7. For approval submit, run `harvest submit auth status`.
 8. If submit auth is missing or expired, run `harvest submit auth login`.
-9. Submit with `harvest submit week --date ...`.
+9. Preview with `harvest submit week --dry-run ...` or submit with `harvest submit week --date ...`.
 
 ## Rules
 
@@ -41,8 +41,10 @@ Open only the file you need.
 - `harvest log` accepts Go duration strings like `45m`, `1h30m`, and `2h`.
 - `harvest log` accepts `--date today` or `--date YYYY-MM-DD`.
 - `harvest log` can use default project/task values from config or environment variables.
+- `harvest log --dry-run` resolves the exact project/task pair and prints the entry without creating it.
 - Public API commands use Harvest account ID and personal access token.
 - `harvest submit` uses Harvest website auth.
+- `harvest submit week --dry-run` validates submit auth and resolves the real week window without sending the final submit request.
 - Saved submit passwords and website session cookies live in macOS Keychain.
 
 ## Reference Guide
