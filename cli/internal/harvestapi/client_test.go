@@ -100,6 +100,131 @@ func TestCreateTimeEntrySendsExpectedBody(t *testing.T) {
 	}
 }
 
+func TestTimeEntryUsesIDPath(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/time_entries/88" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TimeEntry{ID: 88, Hours: 1.5})
+	}))
+	defer server.Close()
+
+	client := New("123", "token", server.Client())
+	client.BaseURL = server.URL
+
+	entry, err := client.TimeEntry(context.Background(), 88)
+	if err != nil {
+		t.Fatalf("time entry: %v", err)
+	}
+	if entry.ID != 88 {
+		t.Fatalf("unexpected entry id: %d", entry.ID)
+	}
+}
+
+func TestUpdateTimeEntrySendsOnlyChangedFields(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Fatalf("expected PATCH, got %s", r.Method)
+		}
+		if r.URL.Path != "/time_entries/88" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+
+		if len(payload) != 2 {
+			t.Fatalf("unexpected payload size: %+v", payload)
+		}
+		if payload["hours"].(float64) != 2.25 {
+			t.Fatalf("unexpected hours: %v", payload["hours"])
+		}
+		if payload["spent_date"].(string) != "2026-03-12" {
+			t.Fatalf("unexpected spent_date: %v", payload["spent_date"])
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TimeEntry{ID: 88, Hours: 2.25, SpentDate: "2026-03-12"})
+	}))
+	defer server.Close()
+
+	client := New("123", "token", server.Client())
+	client.BaseURL = server.URL
+
+	hours := 2.25
+	date := "2026-03-12"
+	entry, err := client.UpdateTimeEntry(context.Background(), 88, UpdateTimeEntryInput{
+		Hours:     &hours,
+		SpentDate: &date,
+	})
+	if err != nil {
+		t.Fatalf("update time entry: %v", err)
+	}
+	if entry.Hours != 2.25 || entry.SpentDate != "2026-03-12" {
+		t.Fatalf("unexpected entry: %+v", entry)
+	}
+}
+
+func TestUpdateTimeEntryCanClearNotes(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if payload["notes"].(string) != "" {
+			t.Fatalf("expected empty notes string, got %q", payload["notes"])
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(TimeEntry{ID: 88})
+	}))
+	defer server.Close()
+
+	client := New("123", "token", server.Client())
+	client.BaseURL = server.URL
+
+	notes := ""
+	if _, err := client.UpdateTimeEntry(context.Background(), 88, UpdateTimeEntryInput{Notes: &notes}); err != nil {
+		t.Fatalf("update time entry: %v", err)
+	}
+}
+
+func TestDeleteTimeEntryUsesIDPath(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Fatalf("expected DELETE, got %s", r.Method)
+		}
+		if r.URL.Path != "/time_entries/88" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := New("123", "token", server.Client())
+	client.BaseURL = server.URL
+
+	if err := client.DeleteTimeEntry(context.Background(), 88); err != nil {
+		t.Fatalf("delete time entry: %v", err)
+	}
+}
+
 func TestTimeEntriesIncludesDateRange(t *testing.T) {
 	t.Parallel()
 

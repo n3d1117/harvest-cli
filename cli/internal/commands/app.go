@@ -32,7 +32,7 @@ Commands:
   whoami        Verify Harvest auth
   projects      List active project/task pairs
   recent        Show recent time entries
-  log           Create a time entry
+  log           Create, update, or delete a time entry
   today         Show today's entries
   help          Show help for a command
 
@@ -43,7 +43,9 @@ Examples:
   harvest whoami
   harvest projects --json
   harvest recent
-  harvest log --project "Acme" --task "Development" --duration 1h30m --notes "CLI scaffolding"
+  harvest log create --project "Acme" --task "Development" --duration 1h30m --notes "CLI scaffolding"
+  harvest log update --id 44 --duration 45m --notes "Adjusted after review"
+  harvest log delete --id 44 --dry-run
   harvest today
 `
 
@@ -115,7 +117,21 @@ Show recent time entries. By default, this looks back 90 days and returns 10 ent
 `
 
 const logHelp = `Usage:
-  harvest log --project <name> --task <name> --duration <duration> [flags]
+  harvest log <command> [flags]
+
+Commands:
+  create        Create a time entry
+  update        Update an existing time entry
+  delete        Delete an existing time entry
+
+Examples:
+  harvest log create --project "Acme" --task "Development" --duration 1h30m
+  harvest log update --id 44 --duration 45m --notes "Bug fix"
+  harvest log delete --id 44 --dry-run
+`
+
+const logCreateHelp = `Usage:
+  harvest log create --project <name> --task <name> --duration <duration> [flags]
 
 Flags:
   --project string
@@ -134,9 +150,52 @@ Notes:
   - Dry run validates and resolves the exact project/task pair without creating an entry.
 
 Examples:
-  harvest log --project "Acme" --task "Development" --duration 1h30m
-  harvest log --project "Acme" --task "Development" --duration 1h30m --dry-run
-  harvest log --duration 45m --date today --notes "Bug fix"
+  harvest log create --project "Acme" --task "Development" --duration 1h30m
+  harvest log create --project "Acme" --task "Development" --duration 1h30m --dry-run
+  harvest log create --duration 45m --date today --notes "Bug fix"
+`
+
+const logUpdateHelp = `Usage:
+  harvest log update --id <entry-id> [flags]
+
+Flags:
+  --id int
+  --project string
+  --task string
+  --duration string
+  --date string
+  --notes, -n string
+  --dry-run
+  --json
+
+Notes:
+  - Pass at least one change flag.
+  - Duration uses Go duration strings like 45m, 1h30m, or 2h.
+  - Date accepts YYYY-MM-DD or "today".
+  - If you change project or task, pass both so the pair can be resolved.
+  - Passing --notes "" clears notes.
+  - Dry run fetches the current entry and shows the final result without saving it.
+
+Examples:
+  harvest log update --id 44 --duration 45m
+  harvest log update --id 44 --date 2026-03-12 --notes ""
+  harvest log update --id 44 --project "Acme" --task "Review" --dry-run
+`
+
+const logDeleteHelp = `Usage:
+  harvest log delete --id <entry-id> [--dry-run] [--json]
+
+Flags:
+  --id int
+  --dry-run
+  --json
+
+Notes:
+  - Dry run fetches the current entry and shows what would be deleted without deleting it.
+
+Examples:
+  harvest log delete --id 44
+  harvest log delete --id 44 --dry-run
 `
 
 const todayHelp = `Usage:
@@ -149,6 +208,9 @@ type HarvestService interface {
 	Me(context.Context) (harvestapi.User, error)
 	ProjectAssignments(context.Context) ([]harvestapi.ProjectAssignment, error)
 	CreateTimeEntry(context.Context, harvestapi.CreateTimeEntryInput) (harvestapi.TimeEntry, error)
+	TimeEntry(context.Context, int64) (harvestapi.TimeEntry, error)
+	UpdateTimeEntry(context.Context, int64, harvestapi.UpdateTimeEntryInput) (harvestapi.TimeEntry, error)
+	DeleteTimeEntry(context.Context, int64) error
 	TimeEntries(context.Context, string, string) ([]harvestapi.TimeEntry, error)
 }
 
@@ -191,6 +253,17 @@ type exitError struct {
 type stringFlag struct {
 	value string
 	set   bool
+}
+
+type logEntryResult struct {
+	ID        *int64  `json:"id,omitempty"`
+	Date      string  `json:"date"`
+	Hours     float64 `json:"hours"`
+	Notes     *string `json:"notes,omitempty"`
+	ProjectID int64   `json:"project_id"`
+	Project   string  `json:"project"`
+	TaskID    int64   `json:"task_id"`
+	Task      string  `json:"task"`
 }
 
 func (f *stringFlag) String() string {
@@ -309,11 +382,24 @@ func (a *App) runHelp(args []string) error {
 	case "recent":
 		fmt.Fprint(a.Stdout, recentHelp)
 	case "log":
-		fmt.Fprint(a.Stdout, logHelp)
+		if len(args) == 1 {
+			fmt.Fprint(a.Stdout, logHelp)
+			return nil
+		}
+		switch args[1] {
+		case "create":
+			fmt.Fprint(a.Stdout, logCreateHelp)
+		case "update":
+			fmt.Fprint(a.Stdout, logUpdateHelp)
+		case "delete":
+			fmt.Fprint(a.Stdout, logDeleteHelp)
+		default:
+			return &exitError{Code: 2, Message: fmt.Sprintf("unknown help topic %q", strings.Join(args, " "))}
+		}
 	case "today":
 		fmt.Fprint(a.Stdout, todayHelp)
 	default:
-		return &exitError{Code: 2, Message: fmt.Sprintf("unknown help topic %q", args[0])}
+		return &exitError{Code: 2, Message: fmt.Sprintf("unknown help topic %q", strings.Join(args, " "))}
 	}
 	return nil
 }
@@ -627,15 +713,51 @@ func (a *App) runRecent(args []string) error {
 	}
 
 	writer := tabwriter.NewWriter(a.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(writer, "DATE\tPROJECT\tTASK\tHOURS\tNOTES")
+	fmt.Fprintln(writer, "ID\tDATE\tPROJECT\tTASK\tHOURS\tNOTES")
 	for _, entry := range entries {
-		fmt.Fprintf(writer, "%s\t%s\t%s\t%.2f\t%s\n", entry.SpentDate, entry.Project.Name, entry.Task.Name, entry.Hours, entry.Notes)
+		fmt.Fprintf(writer, "%d\t%s\t%s\t%s\t%.2f\t%s\n", entry.ID, entry.SpentDate, entry.Project.Name, entry.Task.Name, entry.Hours, entry.Notes)
 	}
 	return writer.Flush()
 }
 
 func (a *App) runLog(args []string) error {
-	fs := newFlagSet("log", logHelp, a.Stdout, a.Stderr)
+	if len(args) == 0 {
+		fmt.Fprint(a.Stdout, logHelp)
+		return &exitError{Code: 2, Message: "missing log subcommand"}
+	}
+
+	switch args[0] {
+	case "help":
+		if len(args) == 1 {
+			fmt.Fprint(a.Stdout, logHelp)
+			return nil
+		}
+		switch args[1] {
+		case "create":
+			fmt.Fprint(a.Stdout, logCreateHelp)
+		case "update":
+			fmt.Fprint(a.Stdout, logUpdateHelp)
+		case "delete":
+			fmt.Fprint(a.Stdout, logDeleteHelp)
+		default:
+			fmt.Fprint(a.Stdout, logHelp)
+			return &exitError{Code: 2, Message: fmt.Sprintf("unknown log subcommand %q", args[1])}
+		}
+		return nil
+	case "create":
+		return a.runLogCreate(args[1:])
+	case "update":
+		return a.runLogUpdate(args[1:])
+	case "delete":
+		return a.runLogDelete(args[1:])
+	default:
+		fmt.Fprint(a.Stdout, logHelp)
+		return &exitError{Code: 2, Message: fmt.Sprintf("unknown log subcommand %q", args[0])}
+	}
+}
+
+func (a *App) runLogCreate(args []string) error {
+	fs := newFlagSet("log create", logCreateHelp, a.Stdout, a.Stderr)
 	var projectFlag stringFlag
 	var taskFlag stringFlag
 
@@ -654,7 +776,7 @@ func (a *App) runLog(args []string) error {
 		return err
 	}
 	if fs.NArg() != 0 {
-		return &exitError{Code: 2, Message: "log does not accept positional arguments"}
+		return &exitError{Code: 2, Message: "log create does not accept positional arguments"}
 	}
 	if strings.TrimSpace(*duration) == "" {
 		return &exitError{Code: 2, Message: "--duration is required"}
@@ -680,50 +802,20 @@ func (a *App) runLog(args []string) error {
 		return err
 	}
 
-	projectName := strings.TrimSpace(values.DefaultProject)
-	taskName := strings.TrimSpace(values.DefaultTask)
-	if projectName == "" {
-		return &exitError{Code: 2, Message: "project is required; pass --project or set a default project"}
-	}
-	if taskName == "" {
-		return &exitError{Code: 2, Message: "task is required; pass --task or set a default task"}
-	}
-
-	assignments, err := client.ProjectAssignments(a.context())
+	pair, err := a.resolveCreateProjectTask(client, values)
 	if err != nil {
 		return err
 	}
 
-	pair, err := ResolveProjectTask(assignments, projectName, taskName)
-	if err != nil {
-		return &exitError{Code: 2, Message: err.Error()}
-	}
-
-	result := struct {
-		ID        *int64  `json:"id,omitempty"`
-		Date      string  `json:"date"`
-		Hours     float64 `json:"hours"`
-		Notes     string  `json:"notes,omitempty"`
-		ProjectID int64   `json:"project_id"`
-		Project   string  `json:"project"`
-		TaskID    int64   `json:"task_id"`
-		Task      string  `json:"task"`
-	}{
-		Date:      entryDate,
-		Hours:     hours,
-		Notes:     strings.TrimSpace(*notes),
-		ProjectID: pair.ProjectID,
-		Project:   pair.ProjectName,
-		TaskID:    pair.TaskID,
-		Task:      pair.TaskName,
-	}
+	notesValue := strings.TrimSpace(*notes)
+	result := newLogEntryResult(nil, entryDate, hours, notesPointerIfNonEmpty(notesValue), pair)
 
 	if *dryRun {
 		if *jsonOutput {
 			return output.JSON(a.Stdout, struct {
-				OK     bool `json:"ok"`
-				DryRun bool `json:"dry_run"`
-				Entry  any  `json:"entry"`
+				OK     bool           `json:"ok"`
+				DryRun bool           `json:"dry_run"`
+				Entry  logEntryResult `json:"entry"`
 			}{
 				OK:     true,
 				DryRun: true,
@@ -731,10 +823,7 @@ func (a *App) runLog(args []string) error {
 			})
 		}
 
-		fmt.Fprintf(a.Stdout, "Dry run: would log %.2fh on %s to %s / %s.\n", result.Hours, result.Date, result.Project, result.Task)
-		if result.Notes != "" {
-			fmt.Fprintf(a.Stdout, "Notes: %s\n", result.Notes)
-		}
+		printLogCreateMessage(a.Stdout, result, true)
 		return nil
 	}
 
@@ -743,28 +832,204 @@ func (a *App) runLog(args []string) error {
 		TaskID:    pair.TaskID,
 		SpentDate: entryDate,
 		Hours:     hours,
-		Notes:     strings.TrimSpace(*notes),
+		Notes:     notesValue,
 	})
 	if err != nil {
 		return err
 	}
 
-	result.ID = &entry.ID
+	result.ID = int64Pointer(entry.ID)
 
 	if *jsonOutput {
 		return output.JSON(a.Stdout, struct {
-			OK    bool `json:"ok"`
-			Entry any  `json:"entry"`
+			OK    bool           `json:"ok"`
+			Entry logEntryResult `json:"entry"`
 		}{
 			OK:    true,
 			Entry: result,
 		})
 	}
 
-	fmt.Fprintf(a.Stdout, "Logged %.2fh on %s to %s / %s (#%d).\n", result.Hours, result.Date, result.Project, result.Task, *result.ID)
-	if result.Notes != "" {
-		fmt.Fprintf(a.Stdout, "Notes: %s\n", result.Notes)
+	printLogCreateMessage(a.Stdout, result, false)
+	return nil
+}
+
+func (a *App) runLogUpdate(args []string) error {
+	fs := newFlagSet("log update", logUpdateHelp, a.Stdout, a.Stderr)
+	var projectFlag stringFlag
+	var taskFlag stringFlag
+	var durationFlag stringFlag
+	var dateFlag stringFlag
+	var notesFlag stringFlag
+
+	id := fs.Int64("id", 0, "Entry ID")
+	dryRun := fs.Bool("dry-run", false, "Validate and print the final entry without saving it")
+	jsonOutput := fs.Bool("json", false, "Print JSON")
+	fs.Var(&projectFlag, "project", "Project name")
+	fs.Var(&taskFlag, "task", "Task name")
+	fs.Var(&durationFlag, "duration", "Go duration string like 45m or 1h30m")
+	fs.Var(&dateFlag, "date", "Date in YYYY-MM-DD")
+	fs.Var(&notesFlag, "notes", "Optional entry notes")
+	fs.Var(&notesFlag, "n", "Optional entry notes")
+
+	if err := fs.Parse(args); err != nil {
+		return err
 	}
+	if fs.NArg() != 0 {
+		return &exitError{Code: 2, Message: "log update does not accept positional arguments"}
+	}
+	if *id <= 0 {
+		return &exitError{Code: 2, Message: "--id is required"}
+	}
+	if !durationFlag.set && !dateFlag.set && !notesFlag.set && !projectFlag.set && !taskFlag.set {
+		return &exitError{Code: 2, Message: "pass at least one field to update"}
+	}
+	if projectFlag.set != taskFlag.set {
+		return &exitError{Code: 2, Message: "if changing project or task, pass both --project and --task"}
+	}
+
+	client, _, err := a.client(config.Values{})
+	if err != nil {
+		return err
+	}
+
+	var updateInput harvestapi.UpdateTimeEntryInput
+	var pair *ProjectTaskPair
+
+	if durationFlag.set {
+		hours, err := ParseDurationHours(durationFlag.value)
+		if err != nil {
+			return &exitError{Code: 2, Message: err.Error()}
+		}
+		updateInput.Hours = &hours
+	}
+
+	if dateFlag.set {
+		entryDate, err := resolveDateInput(dateFlag.value, a.Now())
+		if err != nil {
+			return &exitError{Code: 2, Message: err.Error()}
+		}
+		updateInput.SpentDate = &entryDate
+	}
+
+	if notesFlag.set {
+		notes := notesFlag.value
+		updateInput.Notes = &notes
+	}
+
+	if projectFlag.set {
+		resolvedPair, err := a.resolveExplicitProjectTask(client, projectFlag.value, taskFlag.value)
+		if err != nil {
+			return err
+		}
+		pair = &resolvedPair
+		updateInput.ProjectID = &pair.ProjectID
+		updateInput.TaskID = &pair.TaskID
+	}
+
+	if *dryRun {
+		entry, err := client.TimeEntry(a.context(), *id)
+		if err != nil {
+			return err
+		}
+		result := buildLogEntryResult(entry)
+		applyUpdateResult(&result, updateInput, pair)
+
+		if *jsonOutput {
+			return output.JSON(a.Stdout, struct {
+				OK     bool           `json:"ok"`
+				DryRun bool           `json:"dry_run"`
+				Entry  logEntryResult `json:"entry"`
+			}{
+				OK:     true,
+				DryRun: true,
+				Entry:  result,
+			})
+		}
+
+		printLogUpdateMessage(a.Stdout, result, true)
+		return nil
+	}
+
+	entry, err := client.UpdateTimeEntry(a.context(), *id, updateInput)
+	if err != nil {
+		return err
+	}
+
+	result := buildLogEntryResult(entry)
+	if *jsonOutput {
+		return output.JSON(a.Stdout, struct {
+			OK    bool           `json:"ok"`
+			Entry logEntryResult `json:"entry"`
+		}{
+			OK:    true,
+			Entry: result,
+		})
+	}
+
+	printLogUpdateMessage(a.Stdout, result, false)
+	return nil
+}
+
+func (a *App) runLogDelete(args []string) error {
+	fs := newFlagSet("log delete", logDeleteHelp, a.Stdout, a.Stderr)
+	id := fs.Int64("id", 0, "Entry ID")
+	dryRun := fs.Bool("dry-run", false, "Print what would be deleted without deleting it")
+	jsonOutput := fs.Bool("json", false, "Print JSON")
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return &exitError{Code: 2, Message: "log delete does not accept positional arguments"}
+	}
+	if *id <= 0 {
+		return &exitError{Code: 2, Message: "--id is required"}
+	}
+
+	client, _, err := a.client(config.Values{})
+	if err != nil {
+		return err
+	}
+
+	entry, err := client.TimeEntry(a.context(), *id)
+	if err != nil {
+		return err
+	}
+
+	result := buildLogEntryResult(entry)
+	if *dryRun {
+		if *jsonOutput {
+			return output.JSON(a.Stdout, struct {
+				OK     bool           `json:"ok"`
+				DryRun bool           `json:"dry_run"`
+				Entry  logEntryResult `json:"entry"`
+			}{
+				OK:     true,
+				DryRun: true,
+				Entry:  result,
+			})
+		}
+
+		printLogDeleteMessage(a.Stdout, result, true)
+		return nil
+	}
+
+	if err := client.DeleteTimeEntry(a.context(), *id); err != nil {
+		return err
+	}
+
+	if *jsonOutput {
+		return output.JSON(a.Stdout, struct {
+			OK    bool           `json:"ok"`
+			Entry logEntryResult `json:"entry"`
+		}{
+			OK:    true,
+			Entry: result,
+		})
+	}
+
+	printLogDeleteMessage(a.Stdout, result, false)
 	return nil
 }
 
@@ -815,12 +1080,130 @@ func (a *App) runToday(args []string) error {
 	}
 
 	writer := tabwriter.NewWriter(a.Stdout, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(writer, "DATE\tPROJECT\tTASK\tHOURS\tNOTES")
+	fmt.Fprintln(writer, "ID\tDATE\tPROJECT\tTASK\tHOURS\tNOTES")
 	for _, entry := range entries {
-		fmt.Fprintf(writer, "%s\t%s\t%s\t%.2f\t%s\n", entry.SpentDate, entry.Project.Name, entry.Task.Name, entry.Hours, entry.Notes)
+		fmt.Fprintf(writer, "%d\t%s\t%s\t%s\t%.2f\t%s\n", entry.ID, entry.SpentDate, entry.Project.Name, entry.Task.Name, entry.Hours, entry.Notes)
 	}
-	fmt.Fprintf(writer, "TOTAL\t\t\t%.2f\t\n", total)
+	fmt.Fprintf(writer, "TOTAL\t\t\t\t%.2f\t\n", total)
 	return writer.Flush()
+}
+
+func (a *App) resolveCreateProjectTask(client HarvestService, values config.Values) (ProjectTaskPair, error) {
+	projectName := strings.TrimSpace(values.DefaultProject)
+	taskName := strings.TrimSpace(values.DefaultTask)
+	if projectName == "" {
+		return ProjectTaskPair{}, &exitError{Code: 2, Message: "project is required; pass --project or set a default project"}
+	}
+	if taskName == "" {
+		return ProjectTaskPair{}, &exitError{Code: 2, Message: "task is required; pass --task or set a default task"}
+	}
+	return a.resolveExplicitProjectTask(client, projectName, taskName)
+}
+
+func (a *App) resolveExplicitProjectTask(client HarvestService, projectName, taskName string) (ProjectTaskPair, error) {
+	assignments, err := client.ProjectAssignments(a.context())
+	if err != nil {
+		return ProjectTaskPair{}, err
+	}
+
+	pair, err := ResolveProjectTask(assignments, strings.TrimSpace(projectName), strings.TrimSpace(taskName))
+	if err != nil {
+		return ProjectTaskPair{}, &exitError{Code: 2, Message: err.Error()}
+	}
+	return pair, nil
+}
+
+func newLogEntryResult(id *int64, date string, hours float64, notes *string, pair ProjectTaskPair) logEntryResult {
+	return logEntryResult{
+		ID:        id,
+		Date:      date,
+		Hours:     hours,
+		Notes:     notes,
+		ProjectID: pair.ProjectID,
+		Project:   pair.ProjectName,
+		TaskID:    pair.TaskID,
+		Task:      pair.TaskName,
+	}
+}
+
+func buildLogEntryResult(entry harvestapi.TimeEntry) logEntryResult {
+	return logEntryResult{
+		ID:        int64Pointer(entry.ID),
+		Date:      entry.SpentDate,
+		Hours:     entry.Hours,
+		Notes:     notesPointerIfNonEmpty(entry.Notes),
+		ProjectID: entry.Project.ID,
+		Project:   entry.Project.Name,
+		TaskID:    entry.Task.ID,
+		Task:      entry.Task.Name,
+	}
+}
+
+func applyUpdateResult(result *logEntryResult, input harvestapi.UpdateTimeEntryInput, pair *ProjectTaskPair) {
+	if input.Hours != nil {
+		result.Hours = *input.Hours
+	}
+	if input.SpentDate != nil {
+		result.Date = *input.SpentDate
+	}
+	if input.Notes != nil {
+		result.Notes = input.Notes
+	}
+	if pair != nil {
+		result.ProjectID = pair.ProjectID
+		result.Project = pair.ProjectName
+		result.TaskID = pair.TaskID
+		result.Task = pair.TaskName
+	}
+}
+
+func printLogCreateMessage(w io.Writer, result logEntryResult, dryRun bool) {
+	if dryRun {
+		fmt.Fprintf(w, "Dry run: would log %.2fh on %s to %s / %s.\n", result.Hours, result.Date, result.Project, result.Task)
+	} else {
+		fmt.Fprintf(w, "Logged %.2fh on %s to %s / %s (#%d).\n", result.Hours, result.Date, result.Project, result.Task, *result.ID)
+	}
+	printLogNotes(w, result.Notes)
+}
+
+func printLogUpdateMessage(w io.Writer, result logEntryResult, dryRun bool) {
+	if dryRun {
+		fmt.Fprintf(w, "Dry run: would update entry #%d to %.2fh on %s for %s / %s.\n", *result.ID, result.Hours, result.Date, result.Project, result.Task)
+	} else {
+		fmt.Fprintf(w, "Updated entry #%d to %.2fh on %s for %s / %s.\n", *result.ID, result.Hours, result.Date, result.Project, result.Task)
+	}
+	printLogNotes(w, result.Notes)
+}
+
+func printLogDeleteMessage(w io.Writer, result logEntryResult, dryRun bool) {
+	if dryRun {
+		fmt.Fprintf(w, "Dry run: would delete %.2fh on %s from %s / %s (#%d).\n", result.Hours, result.Date, result.Project, result.Task, *result.ID)
+	} else {
+		fmt.Fprintf(w, "Deleted %.2fh on %s from %s / %s (#%d).\n", result.Hours, result.Date, result.Project, result.Task, *result.ID)
+	}
+	printLogNotes(w, result.Notes)
+}
+
+func printLogNotes(w io.Writer, notes *string) {
+	if notes == nil {
+		return
+	}
+	if *notes == "" {
+		fmt.Fprintln(w, "Notes cleared.")
+		return
+	}
+	fmt.Fprintf(w, "Notes: %s\n", *notes)
+}
+
+func int64Pointer(value int64) *int64 {
+	return &value
+}
+
+func notesPointerIfNonEmpty(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func (a *App) client(overrides config.Values) (HarvestService, config.Values, error) {

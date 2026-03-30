@@ -1,6 +1,6 @@
 # Harvest Daily Commands
 
-Use this file for `whoami`, `projects`, `recent`, `log`, `today`, and `submit week`.
+Use this file for `whoami`, `projects`, `recent`, `log create`, `log update`, `log delete`, `today`, and `submit week`.
 
 ## Commands
 
@@ -28,11 +28,27 @@ harvest recent --limit 5 --days 30 --json
 Create a time entry:
 
 ```bash
-harvest log --project "Acme" --task "Development" --duration 1h30m
-harvest log --project "Acme" --task "Development" --duration 1h30m --dry-run
-harvest log --duration 45m --date today --notes "Bug fix"
-harvest log --project "Acme" --task "Development" --duration 1h --dry-run --json
-harvest log --project "Acme" --task "Development" --duration 1h --json
+harvest log create --project "Acme" --task "Development" --duration 1h30m
+harvest log create --project "Acme" --task "Development" --duration 1h30m --dry-run
+harvest log create --duration 45m --date today --notes "Bug fix"
+harvest log create --project "Acme" --task "Development" --duration 1h --dry-run --json
+harvest log create --project "Acme" --task "Development" --duration 1h --json
+```
+
+Update a time entry:
+
+```bash
+harvest log update --id 44 --duration 45m
+harvest log update --id 44 --date 2026-03-12
+harvest log update --id 44 --notes ""
+harvest log update --id 44 --project "Acme" --task "Review" --dry-run --json
+```
+
+Delete a time entry:
+
+```bash
+harvest log delete --id 44
+harvest log delete --id 44 --dry-run --json
 ```
 
 Review today:
@@ -68,7 +84,7 @@ harvest submit week --date 2026-03-09 --json
 - `--days <n>` default `90`
 - `--json`
 
-`harvest log`
+`harvest log create`
 
 - `--project string`
 - `--task string`
@@ -83,6 +99,23 @@ Short aliases:
 - `-p` for `--project`
 - `-t` for `--task`
 - `-n` for `--notes`
+
+`harvest log update`
+
+- `--id int`
+- `--project string`
+- `--task string`
+- `--duration string`
+- `--date string`
+- `--notes, -n string`
+- `--dry-run`
+- `--json`
+
+`harvest log delete`
+
+- `--id int`
+- `--dry-run`
+- `--json`
 
 `harvest today`
 
@@ -151,10 +184,10 @@ Acme     Development  11          22
 `harvest recent`
 
 ```text
-DATE        PROJECT  TASK         HOURS  NOTES
-2026-03-11  Acme     Development  1.00   CLI scaffolding
-2026-03-11  Acme     Review       0.25   PR review
-2026-03-09  Acme     Design       0.50   Wireframes
+ID  DATE        PROJECT  TASK         HOURS  NOTES
+3   2026-03-11  Acme     Development  1.00   CLI scaffolding
+1   2026-03-11  Acme     Review       0.25   PR review
+2   2026-03-09  Acme     Design       0.50   Wireframes
 ```
 
 `harvest recent --json`
@@ -183,14 +216,14 @@ DATE        PROJECT  TASK         HOURS  NOTES
 }
 ```
 
-`harvest log`
+`harvest log create`
 
 ```text
 Logged 1.50h on 2026-03-11 to Acme / Development (#44).
 Notes: CLI scaffolding
 ```
 
-`harvest log --json`
+`harvest log create --json`
 
 ```json
 {
@@ -207,14 +240,14 @@ Notes: CLI scaffolding
 }
 ```
 
-`harvest log --dry-run`
+`harvest log create --dry-run`
 
 ```text
 Dry run: would log 1.50h on 2026-03-11 to Acme / Development.
 Notes: CLI scaffolding
 ```
 
-`harvest log --dry-run --json`
+`harvest log create --dry-run --json`
 
 ```json
 {
@@ -232,13 +265,81 @@ Notes: CLI scaffolding
 }
 ```
 
+`harvest log update`
+
+```text
+Updated entry #44 to 0.75h on 2026-03-12 for Acme / Development.
+Notes cleared.
+```
+
+`harvest log update --json`
+
+```json
+{
+  "ok": true,
+  "entry": {
+    "id": 44,
+    "date": "2026-03-12",
+    "hours": 0.75,
+    "notes": "",
+    "project_id": 11,
+    "project": "Acme",
+    "task_id": 22,
+    "task": "Development"
+  }
+}
+```
+
+`harvest log update --dry-run --json`
+
+```json
+{
+  "ok": true,
+  "dry_run": true,
+  "entry": {
+    "id": 44,
+    "date": "2026-03-12",
+    "hours": 0.75,
+    "notes": "",
+    "project_id": 11,
+    "project": "Acme",
+    "task_id": 22,
+    "task": "Development"
+  }
+}
+```
+
+`harvest log delete`
+
+```text
+Deleted 0.75h on 2026-03-12 from Acme / Development (#44).
+```
+
+`harvest log delete --dry-run --json`
+
+```json
+{
+  "ok": true,
+  "dry_run": true,
+  "entry": {
+    "id": 44,
+    "date": "2026-03-12",
+    "hours": 0.75,
+    "project_id": 11,
+    "project": "Acme",
+    "task_id": 22,
+    "task": "Development"
+  }
+}
+```
+
 `harvest today`
 
 ```text
-DATE        PROJECT  TASK         HOURS  NOTES
-2026-03-11  Acme     Development  1.25   CLI scaffolding
-2026-03-11  Acme     Review       0.75   PR review
-TOTAL                             2.00
+ID     DATE        PROJECT  TASK         HOURS  NOTES
+1      2026-03-11  Acme     Development  1.25   CLI scaffolding
+2      2026-03-11  Acme     Review       0.75   PR review
+TOTAL                                    2.00
 ```
 
 `harvest today --json`
@@ -310,19 +411,21 @@ Dry run: would submit week 2026-03-09 to 2026-03-15 for approval.
 1. Ask what the user worked on for each day in the target period unless they already gave exact entries or explicitly asked to reuse recent entries.
 2. Run `harvest projects --json` if project or task names are unknown.
 3. Run `harvest recent --json` if the user wants to reuse a recent pair.
-4. Run `harvest log --dry-run ...` when the user wants a preview, otherwise `harvest log ...`.
-5. Verify with `harvest today --json`.
+4. Run `harvest log create --dry-run ...`, `harvest log update --dry-run ...`, or `harvest log delete --dry-run ...` when the user wants a preview.
+5. Wait about 2 seconds, then verify with `harvest today --json` or `harvest recent --json`.
 6. Run `harvest submit auth status` before `harvest submit week`.
 7. Run `harvest submit week --dry-run ...` when the user wants a submit preview.
 
 ## Notes
 
 - `harvest projects` filters out inactive projects and tasks.
-- Before `harvest log` or `harvest submit week`, gather the user's day-by-day work details unless exact entries are already known.
-- `harvest log` requires `--duration`.
+- Before `harvest log create` or `harvest submit week`, gather the user's day-by-day work details unless exact entries are already known.
+- `harvest log create` requires `--duration`.
+- `harvest log update` and `harvest log delete` require `--id`.
 - Duration uses Go duration strings like `45m`, `1h30m`, and `2h`.
 - `--date` defaults to local today.
-- `--date` accepts `today` or `YYYY-MM-DD`.
-- `--project` and `--task` can come from config defaults or environment variables.
+- `harvest log create` and `harvest log update` accept `today` or `YYYY-MM-DD` for `--date`.
+- `--project` and `--task` can come from config defaults or environment variables on `harvest log create`.
+- After a create, update, or delete, Harvest can lag briefly on reads. Wait about 2 seconds before using `recent` or `today` to verify the change.
 - `submit week` uses Harvest website auth.
 - If the saved website session expires and a password is in Keychain, the CLI refreshes the session before submitting.

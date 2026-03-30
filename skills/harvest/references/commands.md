@@ -13,7 +13,9 @@ Use this file when you only need the command surface.
 - `harvest whoami`
 - `harvest projects`
 - `harvest recent`
-- `harvest log`
+- `harvest log create`
+- `harvest log update`
+- `harvest log delete`
 - `harvest today`
 
 ## Submit
@@ -27,12 +29,16 @@ Use this file when you only need the command surface.
 
 - `harvest help`
 - `harvest help config`
+- `harvest help log`
+- `harvest help log create`
+- `harvest help log update`
+- `harvest help log delete`
 - `harvest help submit`
 
 ## Notes
 
-- `config show`, `whoami`, `projects`, `recent`, `log`, `today`, `submit auth status`, and `submit week` support `--json`.
-- `harvest log` and `harvest submit week` also support `--dry-run`.
+- `config show`, `whoami`, `projects`, `recent`, `log create`, `log update`, `log delete`, `today`, `submit auth status`, and `submit week` support `--json`.
+- `harvest log create`, `harvest log update`, `harvest log delete`, and `harvest submit week` also support `--dry-run`.
 - Public API commands use Harvest account ID and personal access token.
 - `submit` uses Harvest website auth.
 - Saved submit passwords and website session cookies live in macOS Keychain.

@@ -28,13 +28,22 @@ func (f *fakePrompt) PromptSecret(_ string) (string, error) {
 }
 
 type fakeClient struct {
-	me              harvestapi.User
-	assignments     []harvestapi.ProjectAssignment
-	createResponse  harvestapi.TimeEntry
-	timeEntries     []harvestapi.TimeEntry
-	createInput     harvestapi.CreateTimeEntryInput
-	projectsCalled  bool
-	createWasCalled bool
+	me               harvestapi.User
+	assignments      []harvestapi.ProjectAssignment
+	createResponse   harvestapi.TimeEntry
+	updateResponse   harvestapi.TimeEntry
+	timeEntry        harvestapi.TimeEntry
+	timeEntries      []harvestapi.TimeEntry
+	createInput      harvestapi.CreateTimeEntryInput
+	updateInput      harvestapi.UpdateTimeEntryInput
+	timeEntryID      int64
+	updateID         int64
+	deleteID         int64
+	projectsCalled   bool
+	createWasCalled  bool
+	updateWasCalled  bool
+	deleteWasCalled  bool
+	timeEntryWasRead bool
 }
 
 func (f *fakeClient) Me(context.Context) (harvestapi.User, error) {
@@ -50,6 +59,25 @@ func (f *fakeClient) CreateTimeEntry(_ context.Context, input harvestapi.CreateT
 	f.createInput = input
 	f.createWasCalled = true
 	return f.createResponse, nil
+}
+
+func (f *fakeClient) TimeEntry(_ context.Context, id int64) (harvestapi.TimeEntry, error) {
+	f.timeEntryWasRead = true
+	f.timeEntryID = id
+	return f.timeEntry, nil
+}
+
+func (f *fakeClient) UpdateTimeEntry(_ context.Context, id int64, input harvestapi.UpdateTimeEntryInput) (harvestapi.TimeEntry, error) {
+	f.updateID = id
+	f.updateInput = input
+	f.updateWasCalled = true
+	return f.updateResponse, nil
+}
+
+func (f *fakeClient) DeleteTimeEntry(_ context.Context, id int64) error {
+	f.deleteID = id
+	f.deleteWasCalled = true
+	return nil
 }
 
 func (f *fakeClient) TimeEntries(context.Context, string, string) ([]harvestapi.TimeEntry, error) {
@@ -189,7 +217,7 @@ func TestLogUsesDefaultsAndOptionalNotes(t *testing.T) {
 		},
 	}
 
-	if err := app.Execute([]string{"log", "--duration", "45m", "--json"}); err != nil {
+	if err := app.Execute([]string{"log", "create", "--duration", "45m", "--json"}); err != nil {
 		t.Fatalf("log failed: %v", err)
 	}
 	if !client.createWasCalled {
@@ -252,7 +280,7 @@ func TestLogAcceptsTodayLiteral(t *testing.T) {
 		},
 	}
 
-	if err := app.Execute([]string{"log", "--duration", "30m", "--date", "today"}); err != nil {
+	if err := app.Execute([]string{"log", "create", "--duration", "30m", "--date", "today"}); err != nil {
 		t.Fatalf("log failed: %v", err)
 	}
 	if client.createInput.SpentDate != "2026-03-11" {
@@ -306,7 +334,7 @@ func TestLogDryRunJSONResolvesWithoutCreatingEntry(t *testing.T) {
 		},
 	}
 
-	if err := app.Execute([]string{"log", "--duration", "45m", "--dry-run", "--json"}); err != nil {
+	if err := app.Execute([]string{"log", "create", "--duration", "45m", "--dry-run", "--json"}); err != nil {
 		t.Fatalf("log dry run failed: %v", err)
 	}
 	if client.createWasCalled {
@@ -343,6 +371,352 @@ func TestLogDryRunJSONResolvesWithoutCreatingEntry(t *testing.T) {
 	}
 	if payload.Entry.ProjectID != 11 || payload.Entry.TaskID != 22 {
 		t.Fatalf("unexpected resolved ids: %+v", payload.Entry)
+	}
+}
+
+func TestLogUpdateDryRunJSONChangesOnlyDate(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	if _, err := store.Save(config.Update{AccountID: &accountID, Token: &token}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	client := &fakeClient{
+		timeEntry: harvestapi.TimeEntry{
+			ID:        44,
+			SpentDate: "2026-03-11",
+			Hours:     1.5,
+			Notes:     "Original note",
+			Project:   harvestapi.Project{ID: 11, Name: "Acme"},
+			Task:      harvestapi.Task{ID: 22, Name: "Development"},
+		},
+	}
+
+	var stdout bytes.Buffer
+	app := &App{
+		Store:  store,
+		Prompt: &fakePrompt{},
+		Stdout: &stdout,
+		Stderr: &bytes.Buffer{},
+		Now: func() time.Time {
+			return time.Date(2026, 3, 12, 9, 0, 0, 0, time.Local)
+		},
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return client, nil
+		},
+	}
+
+	if err := app.Execute([]string{"log", "update", "--id", "44", "--date", "today", "--dry-run", "--json"}); err != nil {
+		t.Fatalf("log update dry run failed: %v", err)
+	}
+	if client.updateWasCalled {
+		t.Fatalf("expected dry run to skip update")
+	}
+	if !client.timeEntryWasRead || client.timeEntryID != 44 {
+		t.Fatalf("expected time entry read, got %+v", client)
+	}
+
+	var payload struct {
+		OK     bool `json:"ok"`
+		DryRun bool `json:"dry_run"`
+		Entry  struct {
+			ID        *int64  `json:"id"`
+			Date      string  `json:"date"`
+			Hours     float64 `json:"hours"`
+			Notes     *string `json:"notes"`
+			ProjectID int64   `json:"project_id"`
+			Project   string  `json:"project"`
+			TaskID    int64   `json:"task_id"`
+			Task      string  `json:"task"`
+		} `json:"entry"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if !payload.OK || !payload.DryRun || payload.Entry.ID == nil || *payload.Entry.ID != 44 {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+	if payload.Entry.Date != "2026-03-12" || payload.Entry.Hours != 1.5 {
+		t.Fatalf("unexpected entry payload: %+v", payload.Entry)
+	}
+	if payload.Entry.Notes == nil || *payload.Entry.Notes != "Original note" {
+		t.Fatalf("unexpected notes: %+v", payload.Entry.Notes)
+	}
+}
+
+func TestLogUpdateChangesHoursAndNotes(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	if _, err := store.Save(config.Update{AccountID: &accountID, Token: &token}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	client := &fakeClient{
+		updateResponse: harvestapi.TimeEntry{
+			ID:        44,
+			SpentDate: "2026-03-11",
+			Hours:     0.75,
+			Notes:     "",
+			Project:   harvestapi.Project{ID: 11, Name: "Acme"},
+			Task:      harvestapi.Task{ID: 22, Name: "Development"},
+		},
+	}
+
+	app := &App{
+		Store:   store,
+		Prompt:  &fakePrompt{},
+		Stdout:  &bytes.Buffer{},
+		Stderr:  &bytes.Buffer{},
+		Now:     time.Now,
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return client, nil
+		},
+	}
+
+	if err := app.Execute([]string{"log", "update", "--id", "44", "--duration", "45m", "--notes", ""}); err != nil {
+		t.Fatalf("log update failed: %v", err)
+	}
+	if !client.updateWasCalled || client.updateID != 44 {
+		t.Fatalf("expected update call, got %+v", client)
+	}
+	if client.updateInput.Hours == nil || *client.updateInput.Hours != 0.75 {
+		t.Fatalf("unexpected hours update: %+v", client.updateInput)
+	}
+	if client.updateInput.Notes == nil || *client.updateInput.Notes != "" {
+		t.Fatalf("expected notes clear, got %+v", client.updateInput.Notes)
+	}
+}
+
+func TestLogUpdateChangesProjectAndTask(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	if _, err := store.Save(config.Update{AccountID: &accountID, Token: &token}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	client := &fakeClient{
+		assignments: []harvestapi.ProjectAssignment{
+			{
+				ID:       1,
+				IsActive: true,
+				Project:  harvestapi.Project{ID: 11, Name: "Acme"},
+				TaskAssignments: []harvestapi.TaskAssignment{
+					{ID: 2, IsActive: true, Task: harvestapi.Task{ID: 21, Name: "Design"}},
+					{ID: 3, IsActive: true, Task: harvestapi.Task{ID: 22, Name: "Development"}},
+				},
+			},
+		},
+		updateResponse: harvestapi.TimeEntry{
+			ID:        44,
+			SpentDate: "2026-03-11",
+			Hours:     1.5,
+			Project:   harvestapi.Project{ID: 11, Name: "Acme"},
+			Task:      harvestapi.Task{ID: 21, Name: "Design"},
+		},
+	}
+
+	app := &App{
+		Store:   store,
+		Prompt:  &fakePrompt{},
+		Stdout:  &bytes.Buffer{},
+		Stderr:  &bytes.Buffer{},
+		Now:     time.Now,
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return client, nil
+		},
+	}
+
+	if err := app.Execute([]string{"log", "update", "--id", "44", "--project", "Acme", "--task", "Design"}); err != nil {
+		t.Fatalf("log update failed: %v", err)
+	}
+	if !client.projectsCalled {
+		t.Fatalf("expected project lookup")
+	}
+	if client.updateInput.ProjectID == nil || *client.updateInput.ProjectID != 11 {
+		t.Fatalf("unexpected project update: %+v", client.updateInput)
+	}
+	if client.updateInput.TaskID == nil || *client.updateInput.TaskID != 21 {
+		t.Fatalf("unexpected task update: %+v", client.updateInput)
+	}
+}
+
+func TestLogUpdateRequiresID(t *testing.T) {
+	t.Parallel()
+
+	app := &App{
+		Store:         config.NewStore(filepath.Join(t.TempDir(), "config.json"), nil),
+		Prompt:        &fakePrompt{},
+		Stdout:        &bytes.Buffer{},
+		Stderr:        &bytes.Buffer{},
+		Now:           time.Now,
+		Context:       context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) { return &fakeClient{}, nil },
+	}
+
+	err := app.Execute([]string{"log", "update", "--duration", "45m"})
+	if err == nil || err.Error() != "--id is required" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLogUpdateRequiresAtLeastOneChange(t *testing.T) {
+	t.Parallel()
+
+	app := &App{
+		Store:         config.NewStore(filepath.Join(t.TempDir(), "config.json"), nil),
+		Prompt:        &fakePrompt{},
+		Stdout:        &bytes.Buffer{},
+		Stderr:        &bytes.Buffer{},
+		Now:           time.Now,
+		Context:       context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) { return &fakeClient{}, nil },
+	}
+
+	err := app.Execute([]string{"log", "update", "--id", "44"})
+	if err == nil || err.Error() != "pass at least one field to update" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLogUpdateRequiresProjectAndTaskTogether(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	if _, err := store.Save(config.Update{AccountID: &accountID, Token: &token}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	app := &App{
+		Store:   store,
+		Prompt:  &fakePrompt{},
+		Stdout:  &bytes.Buffer{},
+		Stderr:  &bytes.Buffer{},
+		Now:     time.Now,
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return &fakeClient{}, nil
+		},
+	}
+
+	err := app.Execute([]string{"log", "update", "--id", "44", "--project", "Acme"})
+	if err == nil || err.Error() != "if changing project or task, pass both --project and --task" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLogDeleteDeletesEntry(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	if _, err := store.Save(config.Update{AccountID: &accountID, Token: &token}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	client := &fakeClient{
+		timeEntry: harvestapi.TimeEntry{
+			ID:        44,
+			SpentDate: "2026-03-11",
+			Hours:     1,
+			Project:   harvestapi.Project{ID: 11, Name: "Acme"},
+			Task:      harvestapi.Task{ID: 22, Name: "Development"},
+		},
+	}
+
+	app := &App{
+		Store:   store,
+		Prompt:  &fakePrompt{},
+		Stdout:  &bytes.Buffer{},
+		Stderr:  &bytes.Buffer{},
+		Now:     time.Now,
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return client, nil
+		},
+	}
+
+	if err := app.Execute([]string{"log", "delete", "--id", "44"}); err != nil {
+		t.Fatalf("log delete failed: %v", err)
+	}
+	if !client.timeEntryWasRead || client.timeEntryID != 44 || !client.deleteWasCalled || client.deleteID != 44 {
+		t.Fatalf("unexpected delete flow: %+v", client)
+	}
+}
+
+func TestLogDeleteDryRunJSONFetchesWithoutDeleting(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	if _, err := store.Save(config.Update{AccountID: &accountID, Token: &token}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	client := &fakeClient{
+		timeEntry: harvestapi.TimeEntry{
+			ID:        44,
+			SpentDate: "2026-03-11",
+			Hours:     1,
+			Notes:     "Delete me",
+			Project:   harvestapi.Project{ID: 11, Name: "Acme"},
+			Task:      harvestapi.Task{ID: 22, Name: "Development"},
+		},
+	}
+
+	var stdout bytes.Buffer
+	app := &App{
+		Store:   store,
+		Prompt:  &fakePrompt{},
+		Stdout:  &stdout,
+		Stderr:  &bytes.Buffer{},
+		Now:     time.Now,
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return client, nil
+		},
+	}
+
+	if err := app.Execute([]string{"log", "delete", "--id", "44", "--dry-run", "--json"}); err != nil {
+		t.Fatalf("log delete dry run failed: %v", err)
+	}
+	if client.deleteWasCalled {
+		t.Fatalf("expected dry run to skip delete")
+	}
+
+	var payload struct {
+		OK     bool `json:"ok"`
+		DryRun bool `json:"dry_run"`
+		Entry  struct {
+			ID *int64 `json:"id"`
+		} `json:"entry"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	if !payload.OK || !payload.DryRun || payload.Entry.ID == nil || *payload.Entry.ID != 44 {
+		t.Fatalf("unexpected payload: %+v", payload)
 	}
 }
 
@@ -456,6 +830,88 @@ func TestRecentJSON(t *testing.T) {
 	}
 }
 
+func TestRecentTextIncludesIDs(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	if _, err := store.Save(config.Update{AccountID: &accountID, Token: &token}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	app := &App{
+		Store:  store,
+		Prompt: &fakePrompt{},
+		Stdout: &stdout,
+		Stderr: &bytes.Buffer{},
+		Now: func() time.Time {
+			return time.Date(2026, 3, 11, 12, 0, 0, 0, time.Local)
+		},
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return &fakeClient{
+				timeEntries: []harvestapi.TimeEntry{
+					{ID: 3, SpentDate: "2026-03-11", Hours: 1, Project: harvestapi.Project{Name: "Acme"}, Task: harvestapi.Task{Name: "Development"}},
+				},
+			}, nil
+		},
+	}
+
+	if err := app.Execute([]string{"recent"}); err != nil {
+		t.Fatalf("recent failed: %v", err)
+	}
+	if !strings.HasPrefix(stdout.String(), "ID") {
+		t.Fatalf("expected ID column, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "3") {
+		t.Fatalf("expected entry id in output, got %q", stdout.String())
+	}
+}
+
+func TestTodayTextIncludesIDs(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.json")
+	store := config.NewStore(configPath, nil)
+	accountID := "123"
+	token := "secret"
+	if _, err := store.Save(config.Update{AccountID: &accountID, Token: &token}); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	app := &App{
+		Store:  store,
+		Prompt: &fakePrompt{},
+		Stdout: &stdout,
+		Stderr: &bytes.Buffer{},
+		Now: func() time.Time {
+			return time.Date(2026, 3, 11, 12, 0, 0, 0, time.Local)
+		},
+		Context: context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) {
+			return &fakeClient{
+				timeEntries: []harvestapi.TimeEntry{
+					{ID: 1, SpentDate: "2026-03-11", Hours: 1.25, Project: harvestapi.Project{Name: "Acme"}, Task: harvestapi.Task{Name: "Development"}},
+				},
+			}, nil
+		},
+	}
+
+	if err := app.Execute([]string{"today"}); err != nil {
+		t.Fatalf("today failed: %v", err)
+	}
+	if !strings.HasPrefix(stdout.String(), "ID") {
+		t.Fatalf("expected ID column, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "1") {
+		t.Fatalf("expected entry id in output, got %q", stdout.String())
+	}
+}
+
 func TestHelpText(t *testing.T) {
 	t.Parallel()
 
@@ -473,7 +929,48 @@ func TestHelpText(t *testing.T) {
 	if err := app.Execute([]string{"help", "log"}); err != nil {
 		t.Fatalf("help failed: %v", err)
 	}
-	if !strings.Contains(stdout.String(), "Usage:\n  harvest log") {
+	if !strings.Contains(stdout.String(), "Usage:\n  harvest log <command>") {
 		t.Fatalf("unexpected help output: %q", stdout.String())
+	}
+}
+
+func TestHelpTextForLogUpdate(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	app := &App{
+		Store:         config.NewStore(filepath.Join(t.TempDir(), "config.json"), nil),
+		Prompt:        &fakePrompt{},
+		Stdout:        &stdout,
+		Stderr:        &bytes.Buffer{},
+		Now:           time.Now,
+		Context:       context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) { return &fakeClient{}, nil },
+	}
+
+	if err := app.Execute([]string{"help", "log", "update"}); err != nil {
+		t.Fatalf("help failed: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Usage:\n  harvest log update --id <entry-id>") {
+		t.Fatalf("unexpected help output: %q", stdout.String())
+	}
+}
+
+func TestFlatLogFormIsRejected(t *testing.T) {
+	t.Parallel()
+
+	app := &App{
+		Store:         config.NewStore(filepath.Join(t.TempDir(), "config.json"), nil),
+		Prompt:        &fakePrompt{},
+		Stdout:        &bytes.Buffer{},
+		Stderr:        &bytes.Buffer{},
+		Now:           time.Now,
+		Context:       context.Background(),
+		ClientFactory: func(values config.Values) (HarvestService, error) { return &fakeClient{}, nil },
+	}
+
+	err := app.Execute([]string{"log", "--duration", "45m"})
+	if err == nil || err.Error() != "unknown log subcommand \"--duration\"" {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

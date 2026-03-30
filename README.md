@@ -2,7 +2,7 @@
 
 # harvest
 
-`harvest` is a small CLI for logging time to Harvest and submitting a week for approval.
+`harvest` is a small CLI for creating, updating, and deleting Harvest time entries, and for submitting a week for approval.
 
 ![harvest screenshot](assets/harvest.jpg)
 
@@ -118,19 +118,28 @@ harvest recent
 Log time:
 
 ```bash
-harvest log \
+harvest log create \
   --project "Acme" \
   --task "Development" \
   --duration 1h30m \
   --date today \
   --notes "CLI scaffolding"
 
-harvest log \
+harvest log create \
   --project "Acme" \
   --task "Development" \
   --duration 1h30m \
   --date today \
   --dry-run
+```
+
+Change an existing entry:
+
+```bash
+harvest recent
+harvest log update --id 44 --duration 1h45m --notes "Adjusted after review"
+harvest log update --id 44 --date 2026-03-12
+harvest log delete --id 44 --dry-run
 ```
 
 Review today:
@@ -152,12 +161,19 @@ Use `--dry-run` to validate and preview a write without changing Harvest state.
 Preview a time entry:
 
 ```bash
-harvest log \
+harvest log create \
   --project "Acme" \
   --task "Development" \
   --duration 1h30m \
   --date today \
   --dry-run
+```
+
+Preview an entry update:
+
+```bash
+harvest log update --id 44 --duration 1h --dry-run
+harvest log delete --id 44 --dry-run
 ```
 
 Preview a weekly submit:
@@ -174,8 +190,12 @@ These commands support `--json`:
 harvest config show --json
 harvest projects --json
 harvest recent --json
-harvest log --project "Acme" --task "Development" --duration 1h --dry-run --json
-harvest log --project "Acme" --task "Development" --duration 1h --json
+harvest log create --project "Acme" --task "Development" --duration 1h --dry-run --json
+harvest log create --project "Acme" --task "Development" --duration 1h --json
+harvest log update --id 44 --duration 1h --dry-run --json
+harvest log update --id 44 --duration 1h --json
+harvest log delete --id 44 --dry-run --json
+harvest log delete --id 44 --json
 harvest today --json
 harvest submit auth status --json
 harvest submit week --date 2026-03-09 --dry-run --json

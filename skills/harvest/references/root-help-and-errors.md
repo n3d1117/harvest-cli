@@ -8,6 +8,10 @@ Supported help commands:
 
 - `harvest help`
 - `harvest help config`
+- `harvest help log`
+- `harvest help log create`
+- `harvest help log update`
+- `harvest help log delete`
 - `harvest help submit`
 
 Use this reference for `submit auth` details.
@@ -24,6 +28,12 @@ Use this reference for `submit auth` details.
 - `today`
 - `help`
 
+`log` subcommands:
+
+- `create`
+- `update`
+- `delete`
+
 ## JSON Wrappers
 
 - `harvest config show --json`: `{ "ok": true, "config_path": "...", "config": { ... } }`
@@ -33,8 +43,12 @@ Use this reference for `submit auth` details.
 - `harvest whoami --json`: `{ "ok": true, "user": { ... } }`
 - `harvest projects --json`: `{ "ok": true, "projects": [ ... ] }`
 - `harvest recent --json`: `{ "ok": true, "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "entries": [ ... ] }`
-- `harvest log --json`: `{ "ok": true, "entry": { ... } }`
-- `harvest log --dry-run --json`: `{ "ok": true, "dry_run": true, "entry": { ... } }`
+- `harvest log create --json`: `{ "ok": true, "entry": { ... } }`
+- `harvest log create --dry-run --json`: `{ "ok": true, "dry_run": true, "entry": { ... } }`
+- `harvest log update --json`: `{ "ok": true, "entry": { ... } }`
+- `harvest log update --dry-run --json`: `{ "ok": true, "dry_run": true, "entry": { ... } }`
+- `harvest log delete --json`: `{ "ok": true, "entry": { ... } }`
+- `harvest log delete --dry-run --json`: `{ "ok": true, "dry_run": true, "entry": { ... } }`
 - `harvest today --json`: `{ "ok": true, "date": "YYYY-MM-DD", "total_hours": 0, "entries": [ ... ] }`
 
 ## Common Errors
@@ -81,6 +95,24 @@ Missing duration:
 error: --duration is required
 ```
 
+Missing log subcommand:
+
+```text
+error: missing log subcommand
+```
+
+Missing entry ID:
+
+```text
+error: --id is required
+```
+
+Missing update fields:
+
+```text
+error: pass at least one field to update
+```
+
 Bad date:
 
 ```text
@@ -109,4 +141,10 @@ Ambiguous task:
 
 ```text
 error: task "Development" is ambiguous under project "Acme": Development (#22), Development (#29)
+```
+
+Incomplete project/task update:
+
+```text
+error: if changing project or task, pass both --project and --task
 ```

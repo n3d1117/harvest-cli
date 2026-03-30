@@ -70,6 +70,14 @@ type CreateTimeEntryInput struct {
 	Notes     string
 }
 
+type UpdateTimeEntryInput struct {
+	ProjectID *int64
+	TaskID    *int64
+	SpentDate *string
+	Hours     *float64
+	Notes     *string
+}
+
 type projectAssignmentsPage struct {
 	ProjectAssignments []ProjectAssignment `json:"project_assignments"`
 	NextPage           int                 `json:"next_page"`
@@ -144,6 +152,40 @@ func (c *Client) CreateTimeEntry(ctx context.Context, input CreateTimeEntryInput
 		return TimeEntry{}, err
 	}
 	return entry, nil
+}
+
+func (c *Client) TimeEntry(ctx context.Context, id int64) (TimeEntry, error) {
+	var entry TimeEntry
+	if err := c.doJSON(ctx, http.MethodGet, fmt.Sprintf("/time_entries/%d", id), nil, nil, &entry); err != nil {
+		return TimeEntry{}, err
+	}
+	return entry, nil
+}
+
+func (c *Client) UpdateTimeEntry(ctx context.Context, id int64, input UpdateTimeEntryInput) (TimeEntry, error) {
+	payload := struct {
+		ProjectID *int64   `json:"project_id,omitempty"`
+		TaskID    *int64   `json:"task_id,omitempty"`
+		SpentDate *string  `json:"spent_date,omitempty"`
+		Hours     *float64 `json:"hours,omitempty"`
+		Notes     *string  `json:"notes,omitempty"`
+	}{
+		ProjectID: input.ProjectID,
+		TaskID:    input.TaskID,
+		SpentDate: input.SpentDate,
+		Hours:     input.Hours,
+		Notes:     input.Notes,
+	}
+
+	var entry TimeEntry
+	if err := c.doJSON(ctx, http.MethodPatch, fmt.Sprintf("/time_entries/%d", id), nil, payload, &entry); err != nil {
+		return TimeEntry{}, err
+	}
+	return entry, nil
+}
+
+func (c *Client) DeleteTimeEntry(ctx context.Context, id int64) error {
+	return c.doJSON(ctx, http.MethodDelete, fmt.Sprintf("/time_entries/%d", id), nil, nil, nil)
 }
 
 func (c *Client) TimeEntries(ctx context.Context, fromDate, toDate string) ([]TimeEntry, error) {
