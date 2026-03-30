@@ -38,6 +38,8 @@ Open only the file you need.
 - Prefer the CLI over direct API calls.
 - Prefer `--json` when another tool or agent will read the result.
 - Before any `harvest log` or `harvest submit week`, ask the user what they worked on for each day unless they already supplied exact entries or explicitly asked to reuse recent entries.
+- When a user says "past week" or "last week" in a time-entry context and does not mention weekends, treat it as the prior workweek, Monday through Friday. Do not include Saturday or Sunday unless the user explicitly mentions weekend work or asks for a full calendar week.
+- When a date range is ambiguous, confirm it with explicit dates before logging or submitting.
 - Do not invent Harvest IDs or project/task names. Resolve them from `harvest projects --json`.
 - Treat missing credentials, ambiguous matches, invalid durations, and invalid dates as blockers.
 - `harvest log` accepts Go duration strings like `45m`, `1h30m`, and `2h`.
