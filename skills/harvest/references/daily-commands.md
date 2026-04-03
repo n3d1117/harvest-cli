@@ -377,7 +377,7 @@ Submitted week 2026-03-09 to 2026-03-15 for approval.
     "action": "submitted",
     "week_start": "2026-03-09",
     "week_end": "2026-03-15",
-    "return_to": "/time/day/2026/3/11/4833590",
+    "return_to": "/time?day=11&month=3&year=2026",
     "submitted_before": false,
     "submitted_after": true
   }
@@ -400,7 +400,7 @@ Dry run: would submit week 2026-03-09 to 2026-03-15 for approval.
     "action": "would_submit",
     "week_start": "2026-03-09",
     "week_end": "2026-03-15",
-    "return_to": "/time/day/2026/3/11/4833590",
+    "return_to": "/time?day=11&month=3&year=2026",
     "submitted_before": false
   }
 }
@@ -413,7 +413,7 @@ Dry run: would submit week 2026-03-09 to 2026-03-15 for approval.
 3. Run `harvest recent --json` if the user wants to reuse a recent pair.
 4. Run `harvest log create --dry-run ...`, `harvest log update --dry-run ...`, or `harvest log delete --dry-run ...` when the user wants a preview.
 5. Wait about 2 seconds, then verify with `harvest today --json` or `harvest recent --json`.
-6. Run `harvest submit auth status` before `harvest submit week`.
+6. Make sure public API auth is present before `harvest submit week`.
 7. Run `harvest submit week --dry-run ...` when the user wants a submit preview.
 
 ## Notes
@@ -427,5 +427,5 @@ Dry run: would submit week 2026-03-09 to 2026-03-15 for approval.
 - `harvest log create` and `harvest log update` accept `today` or `YYYY-MM-DD` for `--date`.
 - `--project` and `--task` can come from config defaults or environment variables on `harvest log create`.
 - After a create, update, or delete, Harvest can lag briefly on reads. Wait about 2 seconds before using `recent` or `today` to verify the change.
-- `submit week` uses Harvest website auth.
-- If the saved website session expires and a password is in Keychain, the CLI refreshes the session before submitting.
+- `submit week` uses the same Harvest account ID and personal access token as the rest of the CLI.
+- `submit week --dry-run` reads the week summary without submitting.

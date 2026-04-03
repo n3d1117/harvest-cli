@@ -104,7 +104,6 @@ func TestRedacted(t *testing.T) {
 		Token:          "secret",
 		DefaultProject: "Acme",
 		DefaultTask:    "Dev",
-		SubmitEmail:    "ned@example.com",
 	})
 
 	if !values.TokenPresent {
@@ -112,8 +111,5 @@ func TestRedacted(t *testing.T) {
 	}
 	if values.AccountID != "123" {
 		t.Fatalf("unexpected account id: %q", values.AccountID)
-	}
-	if values.SubmitEmail != "ned@example.com" {
-		t.Fatalf("unexpected submit email: %q", values.SubmitEmail)
 	}
 }

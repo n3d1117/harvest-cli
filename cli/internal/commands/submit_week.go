@@ -1,15 +1,12 @@
 package commands
 
 import (
-	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"harvest/internal/config"
+	"harvest/internal/harvestapi"
 	"harvest/internal/output"
-	"harvest/internal/secretstore"
-	"harvest/internal/websubmit"
 )
 
 func (a *App) runSubmitWeek(args []string) error {
@@ -34,56 +31,63 @@ func (a *App) runSubmitWeek(args []string) error {
 		return err
 	}
 
-	values, err := a.Store.Effective(config.Values{})
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(values.AccountID) == "" {
-		return &exitError{Code: 3, Message: "submit needs a Harvest account ID; run `harvest login` or `harvest config set --account-id ...` first"}
-	}
-	submitEmail := strings.TrimSpace(values.SubmitEmail)
-	if submitEmail == "" {
-		return &exitError{Code: 3, Message: "submit auth is not configured; run `harvest submit auth login` first"}
-	}
-
-	client, err := a.submitClient(values.AccountID)
+	client, _, err := a.client(config.Values{})
 	if err != nil {
 		return err
 	}
 
-	if err := a.restoreSubmitSession(submitEmail, client); err != nil {
-		return err
-	}
-
-	runSubmit := func() (websubmit.SubmitResult, error) {
-		if *dryRun {
-			return client.PreviewSubmitWeek(a.context(), date)
-		}
-		return client.SubmitWeek(a.context(), date, a.Now())
-	}
-
-	result, err := runSubmit()
-	if errors.Is(err, websubmit.ErrUnauthenticated) {
-		password, loadErr := a.submitSecretStore().Load(a.context(), secretstore.ServiceSubmitPassword, submitEmail)
-		if loadErr != nil {
-			if errors.Is(loadErr, secretstore.ErrNotFound) {
-				return &exitError{Code: 3, Message: "submit auth expired; run `harvest submit auth login` again or save a password with `--save-password`"}
-			}
-			return loadErr
-		}
-		if _, err := client.Login(a.context(), submitEmail, password); err != nil {
-			return &exitError{Code: 3, Message: fmt.Sprintf("submit auth refresh failed: %v", err)}
-		}
-		result, err = runSubmit()
-	}
+	before, err := client.WeeklySummary(a.context(), date)
 	if err != nil {
 		return err
+	}
+	if before.Approved {
+		return fmt.Errorf("week starting %s is already approved", before.StartDate)
+	}
+
+	result := harvestapi.SubmitResult{
+		Action:          "would_submit",
+		WeekStart:       before.StartDate,
+		WeekEnd:         before.EndDate,
+		ReturnTo:        harvestapi.SubmitReturnTo(date),
+		SubmittedBefore: before.Submitted,
+		SubmittedAfter:  before.Submitted,
+	}
+	if before.Submitted {
+		result.Action = "would_resubmit"
 	}
 
 	if !*dryRun {
-		if err := a.saveSubmitSession(submitEmail, client); err != nil {
+		user, err := client.Me(a.context())
+		if err != nil {
 			return err
 		}
+		weekStart, err := time.ParseInLocation("2006-01-02", before.StartDate, time.Local)
+		if err != nil {
+			return fmt.Errorf("parse week start: %w", err)
+		}
+		if err := client.SubmitWeekForApproval(a.context(), harvestapi.SubmitWeekInput{
+			UserID:     user.ID,
+			TargetDate: date,
+			WeekStart:  weekStart,
+		}); err != nil {
+			return err
+		}
+
+		after, err := client.WeeklySummary(a.context(), date)
+		if err != nil {
+			return err
+		}
+		if !after.Submitted {
+			return fmt.Errorf("Harvest did not mark the week as submitted")
+		}
+
+		result.Action = "submitted"
+		if before.Submitted {
+			result.Action = "resubmitted"
+		}
+		result.WeekStart = after.StartDate
+		result.WeekEnd = after.EndDate
+		result.SubmittedAfter = after.Submitted
 	}
 
 	if *jsonOutput {
@@ -112,8 +116,8 @@ func (a *App) runSubmitWeek(args []string) error {
 		}
 
 		return output.JSON(a.Stdout, struct {
-			OK     bool                   `json:"ok"`
-			Result websubmit.SubmitResult `json:"result"`
+			OK     bool                    `json:"ok"`
+			Result harvestapi.SubmitResult `json:"result"`
 		}{
 			OK:     true,
 			Result: result,

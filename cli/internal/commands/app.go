@@ -15,8 +15,6 @@ import (
 	"harvest/internal/harvestapi"
 	"harvest/internal/output"
 	"harvest/internal/prompt"
-	"harvest/internal/secretstore"
-	"harvest/internal/websubmit"
 )
 
 const rootHelp = `harvest logs time to Harvest.
@@ -38,7 +36,6 @@ Commands:
 
 Examples:
   harvest login
-  harvest submit auth login --email you@example.com --save-password
   harvest submit week --date today
   harvest whoami
   harvest projects --json
@@ -212,37 +209,20 @@ type HarvestService interface {
 	UpdateTimeEntry(context.Context, int64, harvestapi.UpdateTimeEntryInput) (harvestapi.TimeEntry, error)
 	DeleteTimeEntry(context.Context, int64) error
 	TimeEntries(context.Context, string, string) ([]harvestapi.TimeEntry, error)
+	WeeklySummary(context.Context, time.Time) (harvestapi.WeeklySummaryWeek, error)
+	SubmitWeekForApproval(context.Context, harvestapi.SubmitWeekInput) error
 }
 
 type ClientFactory func(config.Values) (HarvestService, error)
-type SubmitSecretStore interface {
-	Save(context.Context, string, string, string) error
-	Load(context.Context, string, string) (string, error)
-	Delete(context.Context, string, string) error
-	Exists(context.Context, string, string) (bool, error)
-}
-
-type SubmitClient interface {
-	RestoreSession(websubmit.Session) error
-	ExportSession() (websubmit.Session, error)
-	SessionState() websubmit.AuthState
-	Login(context.Context, string, string) (websubmit.AuthState, error)
-	PreviewSubmitWeek(context.Context, time.Time) (websubmit.SubmitResult, error)
-	SubmitWeek(context.Context, time.Time, time.Time) (websubmit.SubmitResult, error)
-}
-
-type SubmitClientFactory func(string) (SubmitClient, error)
 
 type App struct {
-	Store               *config.Store
-	ClientFactory       ClientFactory
-	SubmitSecrets       SubmitSecretStore
-	SubmitClientFactory SubmitClientFactory
-	Prompt              prompt.Prompter
-	Stdout              io.Writer
-	Stderr              io.Writer
-	Now                 func() time.Time
-	Context             context.Context
+	Store         *config.Store
+	ClientFactory ClientFactory
+	Prompt        prompt.Prompter
+	Stdout        io.Writer
+	Stderr        io.Writer
+	Now           func() time.Time
+	Context       context.Context
 }
 
 type exitError struct {
@@ -286,15 +266,11 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	app := &App{
 		Store:         config.NewStore(path, os.Getenv),
 		ClientFactory: defaultClientFactory,
-		SubmitSecrets: secretstore.New(),
-		SubmitClientFactory: func(accountID string) (SubmitClient, error) {
-			return websubmit.New(accountID, nil)
-		},
-		Prompt:  prompt.NewTerminal(stdin, stdout),
-		Stdout:  stdout,
-		Stderr:  stderr,
-		Now:     time.Now,
-		Context: context.Background(),
+		Prompt:        prompt.NewTerminal(stdin, stdout),
+		Stdout:        stdout,
+		Stderr:        stderr,
+		Now:           time.Now,
+		Context:       context.Background(),
 	}
 
 	if err := app.Execute(args); err != nil {
@@ -565,7 +541,6 @@ func (a *App) runConfigShow(args []string) error {
 	fmt.Fprintf(a.Stdout, "Token: %s\n", map[bool]string{true: "present", false: "missing"}[redacted.TokenPresent])
 	fmt.Fprintf(a.Stdout, "Default project: %s\n", printableValue(redacted.DefaultProject))
 	fmt.Fprintf(a.Stdout, "Default task: %s\n", printableValue(redacted.DefaultTask))
-	fmt.Fprintf(a.Stdout, "Submit email: %s\n", printableValue(redacted.SubmitEmail))
 	return nil
 }
 
@@ -1225,20 +1200,6 @@ func (a *App) context() context.Context {
 		return a.Context
 	}
 	return context.Background()
-}
-
-func (a *App) submitSecretStore() SubmitSecretStore {
-	if a.SubmitSecrets != nil {
-		return a.SubmitSecrets
-	}
-	return secretstore.New()
-}
-
-func (a *App) submitClient(accountID string) (SubmitClient, error) {
-	if a.SubmitClientFactory != nil {
-		return a.SubmitClientFactory(accountID)
-	}
-	return websubmit.New(accountID, nil)
 }
 
 func newFlagSet(name, help string, stdout, stderr io.Writer) *flag.FlagSet {

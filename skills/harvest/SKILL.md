@@ -14,7 +14,7 @@ Assume `harvest` is on `PATH`. If it is missing, build or install it first.
 - `SKILL.md`: workflow and guardrails
 - `agents/openai.yaml`: skill metadata
 - `references/commands.md`: command index
-- `references/setup-and-config.md`: login, config, env, and submit auth
+- `references/setup-and-config.md`: login, config, env, and submit prerequisites
 - `references/daily-commands.md`: day-to-day commands
 - `references/root-help-and-errors.md`: help entry points, JSON wrappers, and common errors
 
@@ -30,9 +30,8 @@ Open only the file you need.
 6. For entry updates or deletes, find the entry ID with `harvest recent --json` or `harvest today --json` unless the user already gave the exact ID.
 7. Preview with `harvest log create --dry-run ...`, `harvest log update --dry-run ...`, or `harvest log delete --dry-run ...`.
 8. After a create, update, or delete, wait about 2 seconds before verifying with `harvest today --json` or `harvest recent --json`, because Harvest can lag briefly on reads.
-9. For approval submit, run `harvest submit auth status`.
-10. If submit auth is missing or expired, run `harvest submit auth login`.
-11. Preview with `harvest submit week --dry-run ...` or submit with `harvest submit week --date ...`.
+9. For approval submit, make sure public API auth is present with `harvest whoami` or `harvest config show`.
+10. Preview with `harvest submit week --dry-run ...` or submit with `harvest submit week --date ...`.
 
 ## Rules
 
@@ -51,9 +50,8 @@ Open only the file you need.
 - `harvest log create --dry-run`, `harvest log update --dry-run`, and `harvest log delete --dry-run` preview the final change without writing.
 - After a create, update, or delete, Harvest can take about 2 seconds before `recent` or `today` reflects the change. Wait briefly before verifying.
 - Public API commands use Harvest account ID and personal access token.
-- `harvest submit` uses Harvest website auth.
-- `harvest submit week --dry-run` validates submit auth and resolves the real week window without sending the final submit request.
-- Saved submit passwords and website session cookies live in macOS Keychain.
+- `harvest submit week` uses the same account ID and personal access token as the rest of the CLI.
+- `harvest submit week --dry-run` resolves the real week window and current submit state without posting the final submit request.
 
 ## Reference Guide
 
@@ -64,7 +62,7 @@ Read [`references/commands.md`](references/commands.md) when you need:
 
 Read [`references/setup-and-config.md`](references/setup-and-config.md) when you need:
 
-- `login`, `config`, or `submit auth`
+- `login`, `config`, or submit prerequisites
 - config path, environment overrides, or precedence
 - setup output or setup errors
 

@@ -28,22 +28,29 @@ func (f *fakePrompt) PromptSecret(_ string) (string, error) {
 }
 
 type fakeClient struct {
-	me               harvestapi.User
-	assignments      []harvestapi.ProjectAssignment
-	createResponse   harvestapi.TimeEntry
-	updateResponse   harvestapi.TimeEntry
-	timeEntry        harvestapi.TimeEntry
-	timeEntries      []harvestapi.TimeEntry
-	createInput      harvestapi.CreateTimeEntryInput
-	updateInput      harvestapi.UpdateTimeEntryInput
-	timeEntryID      int64
-	updateID         int64
-	deleteID         int64
-	projectsCalled   bool
-	createWasCalled  bool
-	updateWasCalled  bool
-	deleteWasCalled  bool
-	timeEntryWasRead bool
+	me                 harvestapi.User
+	assignments        []harvestapi.ProjectAssignment
+	createResponse     harvestapi.TimeEntry
+	updateResponse     harvestapi.TimeEntry
+	timeEntry          harvestapi.TimeEntry
+	timeEntries        []harvestapi.TimeEntry
+	weeklySummaries    []harvestapi.WeeklySummaryWeek
+	weeklySummaryErr   error
+	submitWeekErr      error
+	createInput        harvestapi.CreateTimeEntryInput
+	updateInput        harvestapi.UpdateTimeEntryInput
+	submitWeekInput    harvestapi.SubmitWeekInput
+	timeEntryID        int64
+	updateID           int64
+	deleteID           int64
+	weeklySummaryFor   time.Time
+	projectsCalled     bool
+	createWasCalled    bool
+	updateWasCalled    bool
+	deleteWasCalled    bool
+	timeEntryWasRead   bool
+	submitWeekCalls    int
+	weeklySummaryCalls int
 }
 
 func (f *fakeClient) Me(context.Context) (harvestapi.User, error) {
@@ -82,6 +89,28 @@ func (f *fakeClient) DeleteTimeEntry(_ context.Context, id int64) error {
 
 func (f *fakeClient) TimeEntries(context.Context, string, string) ([]harvestapi.TimeEntry, error) {
 	return f.timeEntries, nil
+}
+
+func (f *fakeClient) WeeklySummary(_ context.Context, targetDate time.Time) (harvestapi.WeeklySummaryWeek, error) {
+	f.weeklySummaryCalls++
+	f.weeklySummaryFor = targetDate
+	if f.weeklySummaryErr != nil {
+		return harvestapi.WeeklySummaryWeek{}, f.weeklySummaryErr
+	}
+	if len(f.weeklySummaries) == 0 {
+		return harvestapi.WeeklySummaryWeek{}, nil
+	}
+	summary := f.weeklySummaries[0]
+	if len(f.weeklySummaries) > 1 {
+		f.weeklySummaries = f.weeklySummaries[1:]
+	}
+	return summary, nil
+}
+
+func (f *fakeClient) SubmitWeekForApproval(_ context.Context, input harvestapi.SubmitWeekInput) error {
+	f.submitWeekCalls++
+	f.submitWeekInput = input
+	return f.submitWeekErr
 }
 
 func TestLoginSavesValidatedCredentials(t *testing.T) {

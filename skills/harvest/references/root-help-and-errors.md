@@ -14,8 +14,6 @@ Supported help commands:
 - `harvest help log delete`
 - `harvest help submit`
 
-Use this reference for `submit auth` details.
-
 ## Top-Level Commands
 
 - `login`
@@ -37,7 +35,6 @@ Use this reference for `submit auth` details.
 ## JSON Wrappers
 
 - `harvest config show --json`: `{ "ok": true, "config_path": "...", "config": { ... } }`
-- `harvest submit auth status --json`: `{ "ok": true, "status": { ... } }`
 - `harvest submit week --json`: `{ "ok": true, "result": { ... } }`
 - `harvest submit week --dry-run --json`: `{ "ok": true, "dry_run": true, "result": { ... } }`
 - `harvest whoami --json`: `{ "ok": true, "user": { ... } }`
@@ -59,22 +56,10 @@ Missing API credentials:
 error: missing Harvest credentials; run `harvest login` or `harvest config set --account-id ... --token ...`
 ```
 
-Missing submit auth:
+Approved week:
 
 ```text
-error: submit auth is not configured; run `harvest submit auth login` first
-```
-
-Expired submit auth without a saved password:
-
-```text
-error: submit auth expired; run `harvest submit auth login` again or save a password with `--save-password`
-```
-
-Missing submit account ID:
-
-```text
-error: submit needs a Harvest account ID; run `harvest login` or `harvest config set --account-id ...` first
+error: week starting 2026-03-09 is already approved
 ```
 
 Missing project:

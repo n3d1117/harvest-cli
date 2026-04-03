@@ -77,29 +77,10 @@ Precedence:
 2. environment variables
 3. config file
 
-## Submit Auth
+## Submit
 
 Public API commands use your Harvest account ID and personal access token.
-`harvest submit` uses Harvest website auth because Harvest has no public submit-for-approval API.
-
-Create submit auth:
-
-```bash
-harvest submit auth login --email you@example.com --save-password
-```
-
-Check submit auth:
-
-```bash
-harvest submit auth status
-```
-
-Saved submit passwords and website session cookies live in macOS Keychain.
-
-Observed Harvest website cookie lifetimes from a live login on 2026-03-11:
-
-- `_harvest_sess`: about 15 days
-- `production_access_token`: about 60 days
+`harvest submit week` uses the same credentials and calls Harvest's private submit endpoint.
 
 ## Daily Use
 
@@ -197,7 +178,6 @@ harvest log update --id 44 --duration 1h --json
 harvest log delete --id 44 --dry-run --json
 harvest log delete --id 44 --json
 harvest today --json
-harvest submit auth status --json
 harvest submit week --date 2026-03-09 --dry-run --json
 harvest submit week --date 2026-03-09 --json
 ```
